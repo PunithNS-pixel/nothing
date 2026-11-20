@@ -138,6 +138,10 @@ Aiven Kafka may use TLS client certificate or SASL auth based on your service co
 
 To check that the required services are *actually* on Aiven, use `docker compose -f compose.aiven.yaml ps` (no local Postgres/Kafka/OpenSearch service containers) and inspect `DATABASE_URL`, Kafka bootstrap servers, and OpenSearch URL **without printing passwords**. Then perform the SQL, Kafka and search checks against their Aiven endpoints. The local `verify.sh` currently assumes the local containers for checking Kafka/PostgreSQL and is for **local mode** only.
 
+## Automated CI verification
+
+On each push to `feat/nothing`, GitHub Actions runs a **Full-stack Docker + Terraform verification** workflow. Its integration job builds the complete local Compose stack, seeds products, checks PostgreSQL/Kafka/OpenSearch/RabbitMQ/Grafana/Prometheus, performs an unpaid checkout, and runs a two-customer last-unit stock race. The Terraform job runs `terraform init` and `terraform validate` without creating any Aiven services. Re-run it via GitHub **Actions → Full-stack Docker + Terraform verification → Run workflow** and inspect the logs.
+
 ## Technical boundaries
 
 - **Transactions:** Kafka/Opensearch/RabbitMQ processing is asynchronous (eventual consistency). PostgreSQL is source of truth; the outbox reduces lost-event risk. It is not one distributed ACID transaction.

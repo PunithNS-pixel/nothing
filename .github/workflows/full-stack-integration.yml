@@ -1,0 +1,49 @@
+name: Full-stack Docker + Terraform verification
+on:
+  push:
+    branches: [feat/nothing]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: OpenSearch kernel requirement
+        run: sudo sysctl -w vm.max_map_count=262144
+      - name: Create test-only credentials
+        run: |
+          cp .env.example .env
+          sed -i 's/^JWT_SECRET=.*/JWT_SECRET=CI_RANDOM_DEMO_ONLY_abcdefghijklmnopqrstuvwxyz_0123456789/' .env
+          sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=GithubCiDemo-StrongPassword-Only/' .env
+          sed -i 's/^GRAFANA_ADMIN_PASSWORD=.*/GRAFANA_ADMIN_PASSWORD=GithubCiGrafanaDemoPassword/' .env
+      - name: Build and start real local services
+        run: docker compose up -d --build
+      - name: Show service health
+        run: docker compose ps
+      - name: Seed actual PostgreSQL catalog
+        run: docker compose exec -T api python -m scripts.seed
+      - name: Verify user checkout, Kafka, OpenSearch, RabbitMQ, Prometheus and Grafana
+        run: bash scripts/verify.sh
+      - name: Concurrent last-unit checkout (PostgreSQL locking)
+        run: docker compose exec -T api python -m scripts.concurrency_check
+      - name: Print service logs on failure
+        if: failure()
+        run: docker compose logs --tail=220 api migrate outbox consumer notifications postgres kafka opensearch rabbitmq prometheus grafana gateway
+      - name: Tear down test containers
+        if: always()
+        run: docker compose down -v --remove-orphans
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Initialize Aiven provider without provisioning
+        working-directory: infra/terraform
+        run: terraform init -backend=false -input=false
+      - name: Validate Terraform resource definitions
+        working-directory: infra/terraform
+        run: terraform validate
