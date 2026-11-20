@@ -33,7 +33,9 @@ public class CartController {
     }
     @GetMapping("/carts")
     public ResponseEntity<List<CartDTO>>getCarts(){
-        List<CartDTO> carts=cartService.getCarts();
+        String email=authUtil.loggedInEmail();
+        Cart own=cartRepository.findCartByEmail(email);
+        List<CartDTO> carts=own==null?List.of():List.of(cartService.getCartById(email,own.getCartId()));
         return new ResponseEntity<>(carts, HttpStatus.OK);
     }
     @Transactional
@@ -61,6 +63,8 @@ public class CartController {
     @DeleteMapping("/carts/{cartId}/product/{productId}")
     public ResponseEntity<String> deleteProductFromCart(@PathVariable Long cartId,
                                                         @PathVariable Long productId) {
+        Cart own=cartRepository.findCartByEmail(authUtil.loggedInEmail());
+        if(own==null || !own.getCartId().equals(cartId)) throw new org.springframework.security.access.AccessDeniedException("Not your cart");
         String status = cartService.deleteProductFromCart(cartId, productId);
 
         return new ResponseEntity<String>(status, HttpStatus.OK);

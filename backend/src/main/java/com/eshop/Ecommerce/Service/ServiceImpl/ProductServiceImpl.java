@@ -316,6 +316,8 @@ public class ProductServiceImpl implements ProductService {
         // get the product form db
         Product existingproduct=productRepo.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("product","productId",productId));
+        if(existingproduct.getUser()==null || !existingproduct.getUser().getUserid().equals(authUtil.loggedInUser().getUserid()))
+            throw new org.springframework.security.access.AccessDeniedException("Not your product");
         //update the product info with new product
         existingproduct.setProductName(product.getProductName());
         existingproduct.setDescription(product.getDescription());

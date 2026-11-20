@@ -4,6 +4,9 @@ import com.eshop.Ecommerce.Model.User;
 import com.eshop.Ecommerce.Payload.AddressDTO;
 import com.eshop.Ecommerce.Service.AddressService;
 import com.eshop.Ecommerce.Util.AuthUtil;
+import com.eshop.Ecommerce.Repositories.AddressRepository;
+import com.eshop.Ecommerce.Exception.ResourceNotFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,6 +24,14 @@ public class AddressController {
 
     @Autowired
     AddressService addressService;
+    @Autowired
+    AddressRepository addressRepository;
+
+    private void requireAddressOwner(Long addressId){
+        var saved=addressRepository.findById(addressId).orElseThrow(()->new ResourceNotFoundException("Address","addressId",addressId));
+        if(saved.getUser()==null || !saved.getUser().getUserid().equals(authUtil.loggedInUser().getUserid()))
+            throw new AccessDeniedException("You cannot access another customer's address");
+    }
 
     @PostMapping("/addresses")
     public ResponseEntity<AddressDTO> createAddress(@Valid @RequestBody AddressDTO addressDTO){
@@ -31,12 +42,13 @@ public class AddressController {
 
     @GetMapping("/addresses")
     public ResponseEntity<List<AddressDTO>> getAddresses(){
-        List<AddressDTO> addressList = addressService.getAddresses();
+        List<AddressDTO> addressList = addressService.getUserAddresses(authUtil.loggedInUser());
         return new ResponseEntity<>(addressList, HttpStatus.OK);
     }
 
     @GetMapping("/addresses/{addressId}")
     public ResponseEntity<AddressDTO> getAddressById(@PathVariable Long addressId){
+        requireAddressOwner(addressId);
         AddressDTO addressDTO = addressService.getAddressesById(addressId);
         return new ResponseEntity<>(addressDTO, HttpStatus.OK);
     }
@@ -52,12 +64,14 @@ public class AddressController {
     @PutMapping("/addresses/{addressId}")
     public ResponseEntity<AddressDTO> updateAddress(@PathVariable Long addressId
             , @RequestBody AddressDTO addressDTO){
+        requireAddressOwner(addressId);
         AddressDTO updatedAddress = addressService.updateAddress(addressId, addressDTO);
         return new ResponseEntity<>(updatedAddress, HttpStatus.OK);
     }
 
     @DeleteMapping("/addresses/{addressId}")
     public ResponseEntity<String> updateAddress(@PathVariable Long addressId){
+        requireAddressOwner(addressId);
         String status = addressService.deleteAddress(addressId);
         return new ResponseEntity<>(status, HttpStatus.OK);
     }
