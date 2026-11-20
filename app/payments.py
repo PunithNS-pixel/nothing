@@ -278,7 +278,7 @@ def cancel_payment(order_id: str,user:User=Depends(current_user),db:Session=Depe
 
 
 @router.post('/payments/stripe/webhook')
-async def stripe_webhook(request: Request):
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     config=assert_stripe_config()
     payload=await request.body()
     if len(payload)>1024*1024: raise HTTPException(413, 'Webhook body too large')
@@ -292,13 +292,12 @@ async def stripe_webhook(request: Request):
              'checkout.session.async_payment_failed','checkout.session.expired'}
     if typ not in allowed: return {'received':True}
     session=as_plain(evt['data']['object'])
-    with SessionLocal() as db:
-        try:
-            reconcile_stripe_session(db,session,typ)
-        except ValueError:
-            logger.exception('Stripe webhook order/amount validation failure: event=%s',evt.get('id'))
-            raise HTTPException(400,'Checkout event failed validation')
-        except Exception:
-            logger.exception('Stripe webhook processing failed: event=%s',evt.get('id'))
-            raise HTTPException(503,'Webhook processing delayed; Stripe should retry')
+    try:
+        reconcile_stripe_session(db,session,typ)
+    except ValueError:
+        logger.exception('Stripe webhook order/amount validation failure: event=%s',evt.get('id'))
+        raise HTTPException(400,'Checkout event failed validation')
+    except Exception:
+        logger.exception('Stripe webhook processing failed: event=%s',evt.get('id'))
+        raise HTTPException(503,'Webhook processing delayed; Stripe should retry')
     return {'received':True}
