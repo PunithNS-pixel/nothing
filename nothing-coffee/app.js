@@ -3,12 +3,13 @@
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
   const products = [
-    {id:'original', name:'Original Black', flavor:'ORIGINAL BLACK — COLD BREW', price:45.99, color:'red', image:'assets/can-original.svg', description:'Bold Colombian coffee. Smooth all the way through. Built for whatever the day throws at you.'},
-    {id:'vanilla', name:'Toasted Vanilla', flavor:'TOASTED VANILLA — COLD BREW', price:45.99, color:'blue', image:'assets/can-vanilla.svg', description:'A little sweetness. A lot of character. Your afternoon coffee break just got better.'},
-    {id:'mocha', name:'Smooth Mocha', flavor:'SMOOTH MOCHA — COLD BREW', price:45.99, color:'brown', image:'assets/can-mocha.svg', description:'Rich cocoa notes meet mellow cold brew. Chocolate energy without the heavy finish.'},
-    {id:'variety', name:'Variety Pack', flavor:'ALL THREE FLAVORS', price:47.99, color:'yellow', image:'assets/can-variety.svg', description:'Four of each. Every mood covered.'}
+    {id:'original', name:'Original Black', flavor:'ORIGINAL BLACK — COLD BREW', price:149, color:'red', image:'assets/can-original.svg', description:'Bold Colombian coffee. Smooth all the way through. Built for whatever the day throws at you.'},
+    {id:'vanilla', name:'Toasted Vanilla', flavor:'TOASTED VANILLA — COLD BREW', price:159, color:'blue', image:'assets/can-vanilla.svg', description:'A little sweetness. A lot of character. Your afternoon coffee break just got better.'},
+    {id:'mocha', name:'Smooth Mocha', flavor:'SMOOTH MOCHA — COLD BREW', price:169, color:'brown', image:'assets/can-mocha.svg', description:'Rich cocoa notes meet mellow cold brew. Chocolate energy without the heavy finish.'},
+    {id:'variety', name:'Variety Pack', flavor:'ALL THREE FLAVORS', price:549, color:'yellow', image:'assets/can-variety.svg', description:'Four of each. Every mood covered.'}
   ];
-  const money = value => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
+  window.NothingCatalog = products;
+  const money = value => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(value);
   let active = 0;
   let cart = {};
   try { const stored = JSON.parse(localStorage.getItem('nothing-demo-cart') || '{}'); if (stored && typeof stored === 'object' && !Array.isArray(stored)) cart = stored; } catch { cart = {}; }
@@ -63,8 +64,8 @@
   const dialog = $('#infoDialog');
   function showInfo(title,text){closeCart();$('#dialogTitle').textContent=title;$('#dialogText').textContent=text;dialog.showModal();}
   $('#dialogClose').addEventListener('click',()=>dialog.close());
-  $('#checkoutButton').addEventListener('click',()=>showInfo('DEMO CHECKOUT.','The cart is working, but this is a front-end prototype. Connect Shopify, Stripe, WooCommerce, or another ecommerce backend to accept real orders.'));
-  $('#accountBtn').addEventListener('click',()=>showInfo('ACCOUNT ACCESS.','Account authentication is not configured in this concept. Connect your customer platform before making the site live.'));
+  $('#checkoutButton').addEventListener('click',()=>window.NothingBackend?.checkout(cart,products) ?? showInfo('BACKEND UNAVAILABLE','Start the Nothing backend to complete checkout.'));
+  $('#accountBtn').addEventListener('click',()=>window.NothingBackend?.account() ?? showInfo('BACKEND UNAVAILABLE','Start the Nothing backend to sign in.'));
   $('#teamButton').addEventListener('click',()=>showInfo('LET’S TALK COFFEE.','The teams inquiry feature is a design preview. Add your real business email or CRM endpoint to collect inquiries.'));
   $('#footerContact').addEventListener('click',()=>showInfo('SAY HELLO.','Add your verified business contact email and customer-service workflow here before publishing.'));
   $('#newsletterForm').addEventListener('submit',event=>{event.preventDefault();$('#newsletterFeedback').textContent='LOOKING GOOD. THIS DEMO DOES NOT STORE OR SEND EMAILS.';$('#newsletterForm').reset();});
@@ -77,6 +78,7 @@
   $$('#mobileMenu a').forEach(a=>a.addEventListener('click',closeMobile));
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeCart();closeMobile();if(dialog.open)dialog.close();}if(document.activeElement.closest?.('.hero-selector')&&event.key==='ArrowRight')selectFlavor(active+1);if(document.activeElement.closest?.('.hero-selector')&&event.key==='ArrowLeft')selectFlavor(active-1);});
   if('IntersectionObserver'in window){const observer=new IntersectionObserver(entries=>{entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('visible');observer.unobserve(entry.target);}})},{threshold:.11});$$('.reveal').forEach(el=>observer.observe(el));}else{$$('.reveal').forEach(el=>el.classList.add('visible'));}
+  window.addEventListener('nothing:catalog',renderCart);
   renderCart();
   const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(reduce){$('#loader').classList.add('done');}else{
