@@ -24,6 +24,14 @@ logger = logging.getLogger('nothing.payments')
 RESERVATION_MINUTES = 31
 
 
+def as_plain(value):
+    """Stripe SDK returns StripeObject, which is not a Python dict (no .get)."""
+    if isinstance(value, dict): return value
+    if hasattr(value, 'to_dict_recursive'): return value.to_dict_recursive()
+    if hasattr(value, 'to_dict'): return value.to_dict()
+    raise TypeError('Unsupported Stripe response type')
+
+
 def utcnow():
     return datetime.now(timezone.utc)
 
@@ -214,7 +222,7 @@ def begin_stripe_checkout(data: CheckoutIn,
     if o.stripe_checkout_url:
         return _state_json(o)
     try:
-        session=_create_session(o,user.email,idempotency_key,config)
+        session=as_plain(_create_session(o,user.email,idempotency_key,config))
         if not session.get('url') or not session.get('id'):
             raise RuntimeError('Stripe did not return a Checkout Session URL')
     except HTTPException:
@@ -251,11 +259,11 @@ def cancel_payment(order_id: str,user:User=Depends(current_user),db:Session=Depe
     if o.payment_status != 'pending': return _state_json(o)
     if o.stripe_session_id:
         try:
-            session=stripe.checkout.Session.retrieve(o.stripe_session_id)
+            session=as_plain(stripe.checkout.Session.retrieve(o.stripe_session_id))
             if session.get('payment_status')=='paid':
                 return reconcile_stripe_session(db,session,'checkout.session.completed')
             if session.get('status')=='open':
-                session=stripe.checkout.Session.expire(o.stripe_session_id)
+                session=as_plain(stripe.checkout.Session.expire(o.stripe_session_id))
             if session.get('status')!='expired':
                 raise HTTPException(409,'Payment is being processed; stock cannot be released yet')
         except HTTPException:
@@ -276,14 +284,14 @@ async def stripe_webhook(request: Request):
     if len(payload)>1024*1024: raise HTTPException(413, 'Webhook body too large')
     signature=request.headers.get('stripe-signature','')
     try:
-        evt=stripe.Webhook.construct_event(payload,signature,config.stripe_webhook_secret)
+        evt=as_plain(stripe.Webhook.construct_event(payload,signature,config.stripe_webhook_secret))
     except (ValueError,stripe.error.SignatureVerificationError):
         raise HTTPException(400, 'Invalid webhook signature or payload')
     typ=evt.get('type')
     allowed={'checkout.session.completed','checkout.session.async_payment_succeeded',
              'checkout.session.async_payment_failed','checkout.session.expired'}
     if typ not in allowed: return {'received':True}
-    session=evt['data']['object']
+    session=as_plain(evt['data']['object'])
     with SessionLocal() as db:
         try:
             reconcile_stripe_session(db,session,typ)

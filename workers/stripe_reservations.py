@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.db import SessionLocal
 from app.config import get_settings
 from app.models import Order
-from app.payments import _release_locked, reconcile_stripe_session
+from app.payments import _release_locked, reconcile_stripe_session, as_plain
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger('nothing.stripe.reconciler')
 
@@ -37,11 +37,11 @@ def reconcile_once():
                     logger.error('Order %s has an ambiguous Stripe session; verify it manually before releasing stock',oid)
                     continue
                 if o.stripe_session_id:
-                    session=stripe.checkout.Session.retrieve(o.stripe_session_id)
+                    session=as_plain(stripe.checkout.Session.retrieve(o.stripe_session_id))
                     if session.get('payment_status')=='paid':
                         reconcile_stripe_session(db,session,'checkout.session.completed');done+=1;continue
                     if session.get('status')=='open':
-                        session=stripe.checkout.Session.expire(o.stripe_session_id)
+                        session=as_plain(stripe.checkout.Session.expire(o.stripe_session_id))
                     if session.get('status')!='expired':
                         logger.warning('Order %s is not paid but cannot be expired; manual investigation required',oid)
                         continue
