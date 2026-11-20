@@ -1,0 +1,65 @@
+# Aiven-managed PostgreSQL, Kafka and OpenSearch. Only supporting services run locally.
+# Run from repository root:
+# docker compose -f backend/compose.aiven.yml --env-file backend/.env.aiven up --build -d
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_HTTP_PORT:-8090}:8080"
+      - "${APP_METRICS_PORT:-8091}:8081"
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${AIVEN_PG_JDBC_URL:?Set AIVEN_PG_JDBC_URL with sslmode=require}
+      DATABASE_USER: ${AIVEN_PG_USER:?Set AIVEN_PG_USER}
+      DATABASE_PASSWORD: ${AIVEN_PG_PASSWORD:?Set AIVEN_PG_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Set a new Base64 JWT secret}
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8000/}
+      HIBERNATE_DDL_AUTO: ${HIBERNATE_DDL_AUTO:-update}
+      SEED_RETAIL_CATALOG: ${SEED_RETAIL_CATALOG:-true}
+      SEED_COFFEE_CATALOG: "false"
+      KAFKA_BOOTSTRAP_SERVERS: ${AIVEN_KAFKA_BOOTSTRAP:?Set AIVEN_KAFKA_BOOTSTRAP}
+      KAFKA_SECURITY_PROTOCOL: SASL_SSL
+      KAFKA_SASL_MECHANISM: SCRAM-SHA-256
+      KAFKA_SASL_JAAS_CONFIG: ${AIVEN_KAFKA_SASL_JAAS_CONFIG:?Set SASL JAAS config}
+      OPENSEARCH_URL: ${AIVEN_OPENSEARCH_URL:?Set HTTPS Aiven OpenSearch URL}
+      OPENSEARCH_USER: ${AIVEN_OPENSEARCH_USER:?Set OpenSearch username}
+      OPENSEARCH_PASSWORD: ${AIVEN_OPENSEARCH_PASSWORD:?Set OpenSearch password}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: nothing
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RabbitMQ password}
+      STRIPE_SECRET_KEY: ""
+    depends_on:
+      rabbitmq:
+        condition: service_started
+  frontend:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../nothing-coffee:/usr/share/nginx/html:ro
+    ports:
+      - "${FRONTEND_HTTP_PORT:-8000}:80"
+    restart: unless-stopped
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: nothing
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RabbitMQ password}
+    restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:11.3.0
+    volumes:
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set Grafana password}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    restart: unless-stopped

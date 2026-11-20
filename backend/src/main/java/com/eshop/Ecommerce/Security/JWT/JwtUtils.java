@@ -27,6 +27,9 @@ public class JwtUtils {
     @Value("${spring.app.jwtExpirationMs}")
     private int jwtExpirationMs;
 
+    @Value("${JWT_COOKIE_SECURE:false}")
+    private boolean cookieSecure;
+
     @Value("${spring.ecom.app.jwtCookieName}")
     private String jwtCookie;
 
@@ -55,7 +58,7 @@ public class JwtUtils {
                 .path("/api")
                 .maxAge(24 * 60 * 60) // 1 Day validation
                 .httpOnly(true)
-                .secure(false)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .build();
         return cookie;

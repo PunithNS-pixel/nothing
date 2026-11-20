@@ -121,10 +121,12 @@ public class CartServiceImpl implements CartService {
             throw new ResourceNotFoundException("Cart", "cartId", cartId);
         }
         CartDTO cartDTO= modelMapper.map(cart, CartDTO.class);
-        cart.getCartItems().forEach(c->c.getProduct().setQuantity(c.getQuantity()));
-        List<ProductDTO> products= cart.getCartItems().stream().
-                map((element) -> modelMapper.map(element.getProduct(), ProductDTO.class))
-                .toList();
+        List<ProductDTO> products= cart.getCartItems().stream()
+                .map(item -> {
+                    ProductDTO result=modelMapper.map(item.getProduct(),ProductDTO.class);
+                    result.setQuantity(item.getQuantity());
+                    return result;
+                }).toList();
         cartDTO.setProducts(products);
 
         return cartDTO;
@@ -246,53 +248,44 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public String createOrUpdateCartWithItems(List<CartItemDTO> cartItems) {
-        // Get user's email
-        String emailId = authUtil.loggedInEmail();
-
-        // Check if an existing cart is available or create a new one
-        Cart existingCart = cartRepository.findCartByEmail(emailId);
-        if (existingCart == null) {
-            existingCart = new Cart();
-            existingCart.setTotalPrice(0.00);
-            existingCart.setUser(authUtil.loggedInUser());
-            existingCart = cartRepository.save(existingCart);
-        } else {
-            // Clear all current items in the existing cart
-            cartItemRepository.deleteAllByCartId(existingCart.getCartId());
+    @org.springframework.transaction.annotation.Transactional
+    public String createOrUpdateCartWithItems(List<CartItemDTO> items) {
+        if(items==null||items.size()>100)throw new APIException("Invalid cart size");
+        String emailId=authUtil.loggedInEmail();
+        Cart cart=cartRepository.findCartByEmail(emailId);
+        if(cart==null){
+            cart=new Cart();
+            cart.setUser(authUtil.loggedInUser());
+            cart.setTotalPrice(0.0);
+            cart=cartRepository.save(cart);
         }
-
-        double totalPrice = 0.00;
-
-        // Process each item in the request to add to the cart
-        for (CartItemDTO cartItemDTO : cartItems) {
-            Long productId = cartItemDTO.getProductId();
-            Integer quantity = cartItemDTO.getQuantity();
-            if (quantity == null || quantity < 1 || quantity > 99) throw new APIException("Invalid cart quantity");
-
-            // Find the product by ID
-            Product product = productRepo.findById(productId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", "productId", productId));
-
-            // Directly update product stock and total price
-            // product.setQuantity(product.getQuantity() - quantity);
-            if (product.getQuantity() < quantity) throw new APIException("Insufficient inventory");
-            totalPrice += product.getSpecialPrice() * quantity;
-
-            // Create and save cart item
-            CartItem cartItem = new CartItem();
-            cartItem.setProduct(product);
-            cartItem.setCart(existingCart);
-            cartItem.setQuantity(quantity);
-            cartItem.setProductPrice(product.getSpecialPrice());
-            cartItem.setDiscount(product.getDiscount());
-            cartItemRepository.save(cartItem);
+        java.util.Set<Long> seen=new java.util.HashSet<>();
+        for(CartItemDTO item:items){
+            if(item==null||item.getProductId()==null||!seen.add(item.getProductId())||
+               item.getQuantity()==null||item.getQuantity()<1||item.getQuantity()>99){
+                throw new APIException("Invalid cart item or duplicate product");
+            }
         }
-
-        // Update the cart's total price and save
-        existingCart.setTotalPrice(totalPrice);
-        cartRepository.save(existingCart);
-        return "Cart created/updated with the new items successfully";
+        // Entity collection owns orphan removal. Clear it instead of issuing bulk DELETE
+        // that leaves Hibernate's persistence context with stale cart item entities.
+        cart.getCartItems().clear();
+        cartRepository.flush();
+        double total=0;
+        for(CartItemDTO item:items){
+            Product product=productRepo.findById(item.getProductId())
+              .orElseThrow(()->new ResourceNotFoundException("Product","productId",item.getProductId()));
+            if(product.getQuantity()==null||product.getQuantity()<item.getQuantity())
+              throw new APIException("Insufficient stock for "+product.getProductName());
+            CartItem ci=new CartItem();
+            ci.setCart(cart);ci.setProduct(product);
+            ci.setQuantity(item.getQuantity());ci.setDiscount(product.getDiscount());
+            ci.setProductPrice(product.getSpecialPrice());
+            cart.getCartItems().add(ci);
+            total+=ci.getProductPrice()*ci.getQuantity();
+        }
+        cart.setTotalPrice(total);
+        cartRepository.saveAndFlush(cart);
+        return "Cart saved";
     }
 
     private Cart createCart() {
