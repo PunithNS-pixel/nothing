@@ -71,6 +71,19 @@ services:
     image: nginx:alpine
     volumes: ["../nothing-coffee:/usr/share/nginx/html:ro"]
     ports: ["8000:80"]
+  pgadmin:
+    image: dpage/pgadmin4:8.14
+    profiles: ["dbadmin"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-}
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+      PGADMIN_CONFIG_LOGIN_BANNER: "'LOCAL DATABASE ADMINISTRATION ONLY'"
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+    restart: unless-stopped
   prometheus:
     image: prom/prometheus:v2.55.1
     volumes: ["./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
@@ -84,3 +97,4 @@ services:
 volumes:
   pgdata:
   searchdata:
+  pgadmindata:

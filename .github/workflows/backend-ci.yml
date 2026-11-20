@@ -31,6 +31,22 @@ jobs:
       SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: 'false'
     steps:
       - uses: actions/checkout@v4
+      - name: Validate both Docker Compose deployment profiles
+        env:
+          LOCAL_DB_PASSWORD: ci-only-not-production
+          RABBITMQ_PASSWORD: ci-only-not-production
+          GRAFANA_ADMIN_PASSWORD: ci-only-not-production
+          AIVEN_PG_JDBC_URL: jdbc:postgresql://example.invalid:5432/defaultdb?sslmode=require
+          AIVEN_PG_USER: avnadmin
+          AIVEN_PG_PASSWORD: ci-only-not-production
+          AIVEN_KAFKA_BOOTSTRAP: example.invalid:9092
+          AIVEN_KAFKA_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.scram.ScramLoginModule required username="ci" password="ci-only";'
+          AIVEN_OPENSEARCH_URL: https://example.invalid:9200
+          AIVEN_OPENSEARCH_USER: avnadmin
+          AIVEN_OPENSEARCH_PASSWORD: ci-only-not-production
+        run: |
+          docker compose -f backend/compose.yml config --quiet
+          docker compose -f backend/compose.aiven.yml config --quiet
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
