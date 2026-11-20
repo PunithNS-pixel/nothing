@@ -92,6 +92,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<CartDTO> getCarts() {
         List<Cart> carts=cartRepository.findAll();
         if(carts.isEmpty()){
@@ -117,6 +118,7 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public CartDTO getCartById(String emailId, Long cartId) {
         Cart cart= cartRepository.findCartByEmailAndCartId(emailId,cartId);
         if(cart==null){
