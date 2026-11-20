@@ -1,6 +1,6 @@
 # NOTHING Energy — Aiven Hackathon Store
 
-**Status:** a Docker-ready, frontend-agnostic **e-commerce demonstration** with the provided NOTHING Energy animated storefront. It supports real (unpaid) orders and stock updates. **Not a fully production-validated retail deployment.** No payment provider, real email delivery, shipping or tax engine is included.
+**Status:** a Docker-ready, frontend-agnostic **e-commerce demonstration** with the provided NOTHING Energy animated storefront. It supports unpaid/COD demo orders, optional Stripe-hosted test-mode card payments, and transactional stock updates. **Not a fully production-validated retail deployment.** Live Stripe account approval, refunds, real email delivery, shipping and a tax engine are not included.
 
 [Frontend source](web/) · [Architecture](ARCHITECTURE.md) · [API Swagger](http://localhost:8080/api/docs) · [Production checklist](PRODUCTION_CHECKLIST.md)
 
@@ -16,6 +16,7 @@
 | Kafka | Transactional outbox → Kafka `store.events` topic; consumer dispatches events and tracks processed IDs |
 | OpenSearch | Fuzzy search (`watermelan`), filters by city, category and price; consumer updates index on product/inventory events |
 | RabbitMQ | Durable notification queue; notification consumer logs demo confirmations (not email sending) |
+| Stripe | Optional server-created hosted Checkout, raw signed webhooks, payment reservations, paid/expired transitions and reconciliation worker; requires your own test/live Stripe credentials |
 | Prometheus | `/api/metrics` counts requests and duration; target scraped by Prometheus |
 | Grafana | Provisioned monitoring dashboard, port 3001 |
 | Terraform | Aiven PostgreSQL, Kafka, OpenSearch service resource definitions; requires your Aiven project and credentials |

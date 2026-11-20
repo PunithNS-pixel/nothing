@@ -215,7 +215,7 @@
   $('#adminFeedback').textContent='Loading secured admin reports…';
   try{
    const [summary,users,orders,retailers]=await Promise.all([api('/admin/summary'),api('/admin/users?size=25'),api('/admin/orders?size=25'),api('/admin/retailers?size=25')]);
-   $('#adminSummary').textContent=`Customers: ${summary.customers} · Orders: ${summary.orders} · Unpaid order value: ${money(summary.placed_order_value)}`;
+   $('#adminSummary').textContent=`Customers: ${summary.customers} · Orders: ${summary.orders} · Orders gross value: ${money(summary.placed_order_value)} · Stripe paid: ${money(summary.stripe_paid_value||0)}`;
    $('#adminUsers').replaceChildren();for(const user of users.items){const row=document.createElement('p');row.textContent=`${user.email} · ${user.role} · ${user.active?'active':'disabled'}`;$('#adminUsers').append(row);}
    $('#adminOrders').replaceChildren();for(const order of orders.items){const row=document.createElement('div');row.className='history-entry';
     const label=document.createElement('p');label.textContent=`${order.id.slice(0,8)} · ${order.customer_email} · ${order.status} · ${money(order.total)} · ${order.city}`;
