@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from sqlalchemy import String, ForeignKey, Numeric, Integer, DateTime, Boolean, UniqueConstraint, JSON, Text, Index
+from sqlalchemy import String, ForeignKey, Numeric, Integer, DateTime, Boolean, UniqueConstraint, CheckConstraint, JSON, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
@@ -27,6 +27,7 @@ class RefreshToken(Base):
 
 class Product(Base):
     __tablename__ = 'products'
+    __table_args__ = (CheckConstraint('price > 0', name='ck_product_price_positive'),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     sku: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
@@ -38,7 +39,7 @@ class Product(Base):
 
 class Inventory(Base):
     __tablename__ = 'inventory'
-    __table_args__ = (UniqueConstraint('product_id', 'city', name='uq_product_city'),)
+    __table_args__ = (UniqueConstraint('product_id', 'city', name='uq_product_city'), CheckConstraint('quantity >= 0',name='ck_inventory_nonnegative'))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     product_id: Mapped[str] = mapped_column(ForeignKey('products.id', ondelete='CASCADE'), index=True)
     city: Mapped[str] = mapped_column(String(80))
@@ -46,7 +47,7 @@ class Inventory(Base):
 
 class CartItem(Base):
     __tablename__ = 'cart_items'
-    __table_args__ = (UniqueConstraint('user_id', 'product_id', 'city', name='uq_cart_item'),)
+    __table_args__ = (UniqueConstraint('user_id', 'product_id', 'city', name='uq_cart_item'), CheckConstraint('quantity > 0 AND quantity <= 100',name='ck_cart_quantity_positive'))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
     product_id: Mapped[str] = mapped_column(ForeignKey('products.id'))
@@ -55,7 +56,7 @@ class CartItem(Base):
 
 class Order(Base):
     __tablename__ = 'orders'
-    __table_args__ = (UniqueConstraint('user_id', 'idempotency_key', name='uq_order_idempotency'),)
+    __table_args__ = (UniqueConstraint('user_id', 'idempotency_key', name='uq_order_idempotency'), CheckConstraint('total >= 0',name='ck_order_total_nonnegative'))
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id'), index=True)
     idempotency_key: Mapped[str] = mapped_column(String(128))
@@ -67,6 +68,7 @@ class Order(Base):
 
 class OrderItem(Base):
     __tablename__ = 'order_items'
+    __table_args__ = (CheckConstraint('quantity > 0',name='ck_order_item_quantity_positive'),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     order_id: Mapped[str] = mapped_column(ForeignKey('orders.id', ondelete='CASCADE'))
     product_id: Mapped[str] = mapped_column(ForeignKey('products.id'))

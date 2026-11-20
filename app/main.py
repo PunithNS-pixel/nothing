@@ -18,7 +18,7 @@ from app.security import hash_password, verify_password, new_refresh, access_tok
 from app.search import client as search_client, search_products
 
 settings = get_settings()
-if settings.environment == 'production' and (settings.jwt_secret.startswith('CHANGE_ME') or len(settings.jwt_secret)<32):
+if settings.environment == 'production' and (settings.jwt_secret.startswith(('CHANGE_ME', 'REPLACE_')) or len(settings.jwt_secret)<32):
     raise RuntimeError('Set a strong JWT_SECRET before production')
 
 REQUESTS = Counter('store_http_requests_total','HTTP requests',['method','path','status'])
@@ -29,7 +29,7 @@ async def lifespan(app):
     # Schema migration must be applied separately using `alembic upgrade head`.
     yield
 
-app = FastAPI(title='Nothing Coffee Store API', version='1.1.0', lifespan=lifespan, root_path='/api')
+app = FastAPI(title='Nothing Energy Store API', version='2.0.0', lifespan=lifespan, root_path='/api')
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in settings.cors_origins.split(',') if x.strip()], allow_credentials=False, allow_methods=['GET','POST','PATCH','DELETE'], allow_headers=['Authorization','Content-Type','Idempotency-Key'])
 
 @app.middleware('http')
@@ -179,7 +179,7 @@ def checkout(data:CheckoutIn,idempotency_key:str=Header(...,alias='Idempotency-K
     items=db.scalars(select(CartItem).where(CartItem.user_id==user.id,CartItem.city==data.city).order_by(CartItem.product_id).with_for_update()).all()
     if not items: raise HTTPException(400,'Cart is empty for this city')
     # Lock stock rows in deterministic product order to avoid deadlocks.
-    products={p.id:p for p in db.scalars(select(Product).where(Product.id.in_([x.product_id for x in items])))}
+    products={p.id:p for p in db.scalars(select(Product).where(Product.id.in_([x.product_id for x in items])).order_by(Product.id).with_for_update())}
     stocks={r.product_id:r for r in db.scalars(select(Inventory).where(Inventory.product_id.in_([x.product_id for x in items]),Inventory.city==data.city).order_by(Inventory.product_id).with_for_update())}
     for item in items:
         p=products.get(item.product_id); stock=stocks.get(item.product_id)
@@ -241,3 +241,30 @@ def newsletter(data: NewsletterIn, db:Session=Depends(get_db)):
         try: db.commit()
         except IntegrityError: db.rollback()
     return {'subscribed': True}
+
+
+# Admin reporting APIs: paginated, role protected, no password hashes or tokens.
+@app.get('/admin/users')
+def admin_users(page:int=Query(1,ge=1),size:int=Query(25,ge=1,le=100),_admin:User=Depends(admin_user),db:Session=Depends(get_db)):
+    items=db.scalars(select(User).order_by(User.created_at.desc(),User.id).offset((page-1)*size).limit(size)).all()
+    return {'items':[{'id':u.id,'email':u.email,'role':u.role,'active':u.active,'created_at':u.created_at.isoformat()} for u in items],
+            'page':page,'total':db.scalar(select(func.count()).select_from(User))}
+
+@app.get('/admin/orders')
+def admin_orders(page:int=Query(1,ge=1),size:int=Query(25,ge=1,le=100),_admin:User=Depends(admin_user),db:Session=Depends(get_db)):
+    records=db.execute(select(Order,User.email).join(User,User.id==Order.user_id).order_by(Order.created_at.desc(),Order.id).offset((page-1)*size).limit(size)).all()
+    return {'items':[{'customer_email':email,**order_json(o)} for o,email in records],
+            'page':page,'total':db.scalar(select(func.count()).select_from(Order))}
+
+@app.get('/admin/summary')
+def admin_summary(_admin:User=Depends(admin_user),db:Session=Depends(get_db)):
+    count_users=db.scalar(select(func.count()).select_from(User).where(User.role=='customer')) or 0
+    count_orders=db.scalar(select(func.count()).select_from(Order)) or 0
+    # Payment not integrated. This is gross value of UNPAID orders, not recognized revenue.
+    placed_value=db.scalar(select(func.coalesce(func.sum(Order.total),0)))
+    return {'customers':count_users,'orders':count_orders,'placed_order_value':str(placed_value),'currency':'INR','payments_collected':False}
+
+@app.get('/admin/audit')
+def admin_audit(page:int=Query(1,ge=1),size:int=Query(25,ge=1,le=100),_admin:User=Depends(admin_user),db:Session=Depends(get_db)):
+    items=db.scalars(select(AuditLog).order_by(AuditLog.occurred_at.desc(),AuditLog.id).offset((page-1)*size).limit(size)).all()
+    return {'items':[{'actor_id':r.actor_id,'action':r.action,'target_id':r.target_id,'occurred_at':r.occurred_at.isoformat()} for r in items], 'page':page}

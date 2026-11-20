@@ -1,4 +1,4 @@
-name: retail-platform
+name: nothing-energy-platform
 x-app: &app
   build: .
   env_file: .env

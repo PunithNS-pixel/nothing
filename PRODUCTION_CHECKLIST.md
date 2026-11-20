@@ -1,20 +1,7 @@
-# Public launch readiness checklist
+# Production Readiness — NOT YET COMPLETE
 
-This project is **not approved for public paid orders**. Complete and independently verify each area before a production launch.
+Implemented for the demo: hashed user passwords, JWT access and rotating refresh tokens, role-restricted admin APIs, database constraints, per-user carts, transactional inventory deduction, idempotent retries, durable PostgreSQL outbox, Kafka consumer with processed event IDs, OpenSearch fuzzy filtering, RabbitMQ durable queue, local Prometheus/Grafana, Terraform Aiven provisioning templates, CI contract tests, local checkout smoke script and concurrency test script.
 
-- [ ] Use licensed/approved coffee imagery and confirm all ingredient, caffeine, medical, commercial and food-label claims with appropriate experts.
-- [ ] Add a PCI-compliant payment provider (server-side order/payment state machine, signed webhook verification, payment confirmation, refunds, reconciliation, dispute handling and idempotency).
-- [ ] Add shipping addresses, delivery serviceability, shipping rates, taxes, order cancellation, returns and customer notifications.
-- [ ] Replace sessionStorage auth with an HttpOnly Secure SameSite cookie/BFF session. Add CSRF protections, MFA/password resets/email verification and login abuse controls.
-- [ ] Put gateway behind HTTPS with correct proxy trusted-host handling, TLS/HSTS, CSP and WAF. Restrict admin routes and observability access to internal networks.
-- [ ] Move secrets to secret management. Use unique per-environment credentials, rotate secrets, and do not share local RabbitMQ/PostgreSQL credentials with production.
-- [ ] Provision managed Aiven PostgreSQL, Kafka and OpenSearch with TLS and least-privilege users. Verify actual service plan quotas, connection limits, storage/retention and regional settings.
-- [ ] Use production HA/scaling infrastructure for API, event workers, message brokers, observability and ingress; design outbox row claiming if adding publisher replicas.
-- [ ] Configure PITR/backups, restoration drills, log retention, inventory reconciliation, consumer dead-letter queues/retries, lag/health alerts and a migration rollback policy.
-- [ ] Add functional and load tests against a complete running Docker/Aiven environment; prove concurrent last-unit stock purchases never oversell and duplicate checkout keys do not double-charge or double-decrement.
-- [ ] Add tracing, meaningful SLOs, availability alerts, long-running metrics and vulnerability scanning/SBOM/dependency pinning/image signatures.
-- [ ] Add privacy notices, consent/opt-out and retention/deletion for newsletter records; protect personal information and investigate applicable Indian law and regulations.
-- [ ] Validate financial/business pricing and invoicing rules; all bundled INR values are examples only.
-- [ ] Add formal disaster recovery and operational runbooks, deploy-to-staging and rollback procedures, independent security review and penetration testing.
+To complete **before accepting real money**: live Aiven connections and validation; payment provider and webhook idempotency; payment/stock reservation expiry; cancellation/refund/return workflow and inventory reconciliation; tax and shipping integrations; transactional email provider; email verification and password reset; public HTTPS and WAF; replace sessionStorage bearer tokens with hardened HttpOnly/BFF session and CSRF protection; secure RabbitMQ credentials and TLS; Kafka/OpenSearch production security configuration; PG backups/restore drills/HA; detailed health/lag dashboards and alerting; topic retention/partition planning; encrypted secrets management; load/concurrency tests against managed PostgreSQL; deployment/rollback automation; distributed tracing; privacy and retention practices; accessibility and responsive browser QA.
 
-Currently integrated: live catalog, server-backed accounts, server-backed cart, atomic unpaid orders, order history, Kafka outbox, OpenSearch search, RabbitMQ queue/log sink, newsletter storage, Prometheus/Grafana dev monitoring and Terraform Aiven scaffolding.
+**Local Docker modes intentionally use development-only unsecured internal components.** Local tests and CI syntax/API tests are not sufficient proof of an end-to-end live deployment. Aiven Free plans provide limited resources and may not meet production-scale HA requirements.

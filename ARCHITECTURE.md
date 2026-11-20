@@ -1,52 +1,24 @@
-# Architecture and integration map
+# Nothing Energy System Architecture
 
-```text
-Browser: static Nothing Coffee HTML/CSS/JS
-   │  same-origin /api/*
-   ▼
-Nginx gateway (serves static files, throttles API/auth)
-   │
-FastAPI
- ├── PostgreSQL (users, catalog, city inventory, cart, orders,
- │                 refresh sessions, newsletter, audit + outbox)
- ├── /search ────────────────► OpenSearch
- └── transaction outbox ──► publisher ─► Kafka
-                                         │
-                                   Kafka consumer
-                                    │       │
-                             index product   send order.placed to
-                             in OpenSearch   RabbitMQ confirmations queue
-                                                │
-                                          notification worker
-                                         (logs; no email adapter)
-
-FastAPI /metrics ─► Prometheus ─► Grafana
-Terraform (infra/terraform) ─► Aiven service provisioning scaffolding
+```
+Updated Energy browser UI (five editions + separately stocked mix)
+  → Nginx same-origin /api FastAPI, rate-limited auth
+    → Argon2/JWT and admin role guard
+    → PostgreSQL: users / carts / products / city stock / orders / audit / outbox
+         checkout with row locks + ACID stock & orders + idempotency
+         outbox worker sends committed event → Kafka topic store.events
+         Kafka consumer → OpenSearch index updates
+                        → RabbitMQ durable order.confirmations queue
+                             → notifier (logs only, not email)
+    → OpenSearch: fuzzy search with category, price, city filters
+    → Prometheus: REST request counter/latency → Grafana dashboard
+    → Terraform Aiven service provisioning skeleton
 ```
 
-## Storefront → backend integration
+**Consistency:** every transaction writes order, order-item price snapshots, stock reductions, outbox events and audit log atomically; rollbacks undo all changes. `SELECT FOR UPDATE` locks prevent overselling of the final unit. Eventual consistency is expected for search. The separate mixed-pack SKU has its own inventory and does not consume component SKUs.
 
-| Browser interaction | API | Persistent effect |
-|---|---|---|
-| Page load | `GET /api/products` plus `GET /api/products/:id` | Catalog + authoritative city stock from PostgreSQL |
-| Register | `POST /api/auth/register` | User record; Argon2 password hash |
-| Login | `POST /api/auth/login` | JWT access token + rotating refresh token |
-| Account session | `GET /api/auth/me`, `POST /api/auth/refresh`, `/auth/logout` | Session state, token revocation |
-| Add or update cart | `POST /api/cart/items`, `DELETE /api/cart/items/:id?city=...` | Per-user, per-city cart |
-| Cart view | `GET /api/cart` | PostgreSQL cart |
-| Checkout | `POST /api/orders/checkout`, `Idempotency-Key` | Atomic order and locked stock decrement |
-| My orders | `GET /api/orders` | Order history |
-| Search | `GET /api/search?q=...&city=...&category=Coffee` | OpenSearch index from Kafka consumer |
-| Newsletter | `POST /api/newsletter` | PostgreSQL subscriber record (no outbound mail) |
+**Key tables:** `users`, `refresh_tokens`, `products`, `inventory`, `cart_items`, `orders`, `order_items`, `outbox`, `processed_events`, `audit_logs`, `newsletter_subscribers`.
 
-## Checkout consistency
+**Control:** admin `/admin/users`, `/admin/orders`, `/admin/summary`, `/admin/audit`, `/admin/products/{id}`, `/admin/products/{id}/stock`, `/admin/orders/{id}/fulfillment`; all backend role-guarded.
 
-The API locks the customer row and inventory rows inside a PostgreSQL transaction. Order insertion, cart clearing, stock decrement, inventory events and order event all commit together. Outbox publisher sends committed events to Kafka at least once. Consumer deduplicates event IDs. Search eventually reflects inventory changes. Successful checkout returns an unpaid `placed` order; it does **not** charge or schedule shipment.
-
-## Important architectural constraints
-
-- Monolithic REST API + separate asynchronous workers; scale independently with design review and a production orchestration layer.
-- The outbox publisher is single-instance by default; multiple replicas need row claiming/leases to avoid duplicate publications (events are deduplicated downstream, but unnecessary replay increases load).
-- OpenSearch search results can briefly lag transactional stock.
-- Kafka, RabbitMQ, OpenSearch local Compose are single-node development examples, not fault-tolerant production clusters.
-- This repository does not configure distributed production secrets, backup restoration, certificate issuance, payment providers or shipping carriers.
+**Failure modes:** Kafka offline → outbox queues; consumer repeats event → processed event IDs deduplicate reindex operations and queue publishes; OpenSearch offline → search 503 until recovered; RabbitMQ offline → consumer retries; database offline → checkout error, not a fake local order. Not a distributed exactly-once transaction. Production requires DB failover, backups, observability and reconciliation.

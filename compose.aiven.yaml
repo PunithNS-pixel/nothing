@@ -1,0 +1,60 @@
+# Standalone Compose using Aiven for ALL three mandatory services.
+# Usage: cp .env.aiven.example .env ; edit .env; add TLS certs in ./secrets/
+#        docker compose -f compose.aiven.yaml up -d --build
+name: nothing-energy-aiven
+x-aiven-app: &aiven-app
+  build: .
+  env_file: .env
+  volumes: ['./secrets:/run/secrets:ro']
+  restart: unless-stopped
+services:
+  migrate:
+    <<: *aiven-app
+    restart: 'no'
+    command: ['alembic','upgrade','head']
+  api:
+    <<: *aiven-app
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    ports: ['127.0.0.1:8000:8000']
+    healthcheck: {test: ['CMD','python','-c','import urllib.request; urllib.request.urlopen("http://localhost:8000/health/live")'], interval: 15s, retries: 5}
+  outbox:
+    <<: *aiven-app
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    command: ['python','-m','workers.outbox']
+  consumer:
+    <<: *aiven-app
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      rabbitmq: {condition: service_healthy}
+    command: ['python','-m','workers.consumer']
+  notifications:
+    <<: *aiven-app
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      rabbitmq: {condition: service_healthy}
+    command: ['python','-m','workers.notifications']
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports: ['127.0.0.1:15672:15672']
+    healthcheck: {test: ['CMD','rabbitmq-diagnostics','-q','ping'], interval: 10s, retries: 30}
+  gateway:
+    image: nginx:1.27-alpine
+    volumes: ['./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro','./web:/usr/share/nginx/html:ro']
+    ports: ['${WEB_BIND:-127.0.0.1}:8080:8080']
+    depends_on: [api]
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes: ['./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro',promdata:/prometheus]
+    ports: ['127.0.0.1:9090:9090']
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-local-only}
+    volumes: ['./infra/grafana/provisioning:/etc/grafana/provisioning:ro',grafanadata:/var/lib/grafana]
+    ports: ['127.0.0.1:3001:3000']
+volumes:
+  promdata:
+  grafanadata:

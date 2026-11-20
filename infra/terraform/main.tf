@@ -28,3 +28,12 @@ resource "aiven_opensearch" "search" {
 output "database_service" { value = aiven_pg.db.service_name }
 output "kafka_service" { value = aiven_kafka.events.service_name }
 output "search_service" { value = aiven_opensearch.search.service_name }
+
+# Required Kafka topic for the store event stream (Aiven-managed).
+resource "aiven_kafka_topic" "store_events" {
+  project = var.project
+  service_name = aiven_kafka.events.service_name
+  topic_name = "store.events"
+  partitions = 1
+  replication = 1
+}

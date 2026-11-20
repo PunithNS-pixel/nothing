@@ -10,3 +10,6 @@ __pycache__/
 .terraform/
 *.tfvars
 .DS_Store
+secrets/
+*.tar.gz
+*.tar.xz

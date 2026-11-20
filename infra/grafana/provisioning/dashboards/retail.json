@@ -1,5 +1,5 @@
 {
-  "uid":"retail-overview","title":"Retail Platform Overview","schemaVersion":39,"version":1,"refresh":"10s","time":{"from":"now-15m","to":"now"},
+  "uid":"retail-overview","title":"Nothing Energy Operations Overview","schemaVersion":39,"version":1,"refresh":"10s","time":{"from":"now-15m","to":"now"},
   "panels":[
     {"id":1,"title":"Request rate (per second)","type":"timeseries","gridPos":{"h":9,"w":12,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(store_http_requests_total[5m]))","refId":"A"}]},
     {"id":2,"title":"5xx error rate","type":"timeseries","gridPos":{"h":9,"w":12,"x":12,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(store_http_requests_total{status=~\"5..\"}[5m]))","refId":"A"}]},
