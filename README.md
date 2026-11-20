@@ -10,7 +10,7 @@
 | --- | --- |
 | Frontend | Uploaded NOTHING Energy five-can design; responsive animations, cart drawer, account/search/orders/admin dialogs; real product images |
 | Authentication & RBAC | Argon2 password hashing; access JWT; refresh token rotation and logout; admin-only APIs |
-| Retailers | Business GSTIN with structure+checksum check, unique pending application, admin-controlled approval/rejection/suspension and audit note; approved 15% (configurable) server-calculated checkout pricing |
+| Retailers | Business GSTIN with structure+checksum check, unique pending application, admin-controlled approval/rejection/suspension and audit note; approved 15% (configurable) server-calculated checkout pricing, serialized with profile approval or suspension via row locking |
 | PostgreSQL | Users, retailer profiles, refresh tokens, six SKUs, per-city inventory, carts, orders/items, audit log, newsletter subscribers and outbox; foreign keys, uniqueness and check constraints |
 | Transaction safety | Atomic checkout; sorted `SELECT FOR UPDATE` stock and product row locks, per-customer cart lock, idempotency key; purchase-price snapshot and inventory deduction in one DB transaction |
 | Kafka | Transactional outbox → Kafka `store.events` topic; consumer dispatches events and tracks processed IDs |

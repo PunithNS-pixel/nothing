@@ -24,11 +24,13 @@ def validate_gstin(value):
         raise ValueError('Invalid GSTIN structure or checksum')
     return value
 
-def retailer_for(db, user_id):
-    return db.scalar(select(RetailerProfile).where(RetailerProfile.user_id == user_id))
+def retailer_for(db, user_id, lock=False):
+    query = select(RetailerProfile).where(RetailerProfile.user_id == user_id)
+    if lock: query = query.with_for_update()
+    return db.scalar(query)
 
-def retailer_approved(db, user_id):
-    row=retailer_for(db, user_id)
+def retailer_approved(db, user_id, lock=False):
+    row=retailer_for(db, user_id, lock=lock)
     return row is not None and row.status == 'approved'
 
 def price_for(product, approved):

@@ -278,7 +278,7 @@ def checkout(data:CheckoutIn,idempotency_key:str=Header(...,alias='Idempotency-K
         p=products.get(item.product_id); stock=stocks.get(item.product_id)
         if not p or not p.active or not stock or stock.quantity<item.quantity:
             raise HTTPException(409, f'Insufficient stock for product {item.product_id}')
-    approved=retailer_approved(db,user.id)
+    approved=retailer_approved(db,user.id,lock=True)
     total=sum((price_for(products[x.product_id],approved)*x.quantity for x in items),Decimal('0.00'))
     order=Order(user_id=user.id,idempotency_key=idempotency_key,city=data.city,total=total)
     db.add(order);db.flush()
