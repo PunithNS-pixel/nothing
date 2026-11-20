@@ -28,9 +28,6 @@ public class AddressServiceImpl implements AddressService {
     public AddressDTO createAddress(AddressDTO addressDTO, User user) {
         Address address = modelMapper.map(addressDTO, Address.class);
         address.setUser(user);
-        List<Address> addressesList = user.getAddresses();
-        addressesList.add(address);
-        user.setAddresses(addressesList);
         Address savedAddress = addressRepository.save(address);
         return modelMapper.map(savedAddress, AddressDTO.class);
     }
@@ -52,7 +49,7 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public List<AddressDTO> getUserAddresses(User user) {
-        List<Address> addresses = user.getAddresses();
+        List<Address> addresses = addressRepository.findByUser_UseridOrderByAddressIdAsc(user.getUserid());
         return addresses.stream()
                 .map(address -> modelMapper.map(address, AddressDTO.class))
                 .toList();
@@ -72,11 +69,6 @@ public class AddressServiceImpl implements AddressService {
 
         Address updatedAddress = addressRepository.save(addressFromDatabase);
 
-        User user = addressFromDatabase.getUser();
-        user.getAddresses().removeIf(address -> address.getAddressId().equals(addressId));
-        user.getAddresses().add(updatedAddress);
-        userRepository.save(user);
-
         return modelMapper.map(updatedAddress, AddressDTO.class);
     }
 
@@ -84,10 +76,6 @@ public class AddressServiceImpl implements AddressService {
     public String deleteAddress(Long addressId) {
         Address addressFromDatabase = addressRepository.findById(addressId)
                 .orElseThrow(() -> new ResourceNotFoundException("Address", "addressId", addressId));
-
-        User user = addressFromDatabase.getUser();
-        user.getAddresses().removeIf(address -> address.getAddressId().equals(addressId));
-        userRepository.save(user);
 
         addressRepository.delete(addressFromDatabase);
 

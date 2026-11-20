@@ -293,6 +293,7 @@ async function showOrders(){
  }catch(e){notify('Could not load orders: '+e.message,true)}
 }
 async function checkout(){
+ let checkoutStage='checking account';
  if(cartBusy)return;
  if(!Object.values(cart).some(n=>n>0)){notify('Add a product first.',true);return}
  // Check the server, not a remembered username in frontend state.
@@ -303,7 +304,9 @@ async function checkout(){
   if(!await login())return;
  }
  try{
+  checkoutStage='saving shopping bag';
   await persistCart();
+  checkoutStage='loading delivery addresses';
   let addresses=await request('/api/users/addresses');
   let address=Array.isArray(addresses)&&addresses.length?addresses[0]:null;
   if(!address){
@@ -317,17 +320,19 @@ async function checkout(){
    ];
    const data=await showDialog('DELIVERY ADDRESS',fields,'SAVE ADDRESS');
    if(!data)return;
+   checkoutStage='saving delivery address';
    address=await request('/api/addresses',{method:'POST',body:JSON.stringify(data)});
   }
   const total=Object.entries(cart).reduce((n,[id,q])=>n+(productById(id)?itemPrice(productById(id)):0)*q,0);
   const confirm=await showDialog('PLACE ORDER · '+money(total),[{name:'confirmation',label:'TYPE YES TO CONFIRM CASH ON DELIVERY',placeholder:'YES'}],'PLACE ORDER');
   if(!confirm||confirm.confirmation.toUpperCase()!=='YES')return;
+  checkoutStage='placing cash-on-delivery order';
   const order=await request('/api/order/users/payments/COD',{method:'POST',body:JSON.stringify({addressId:address.addressId,pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Cash on delivery'})});
   cart={};saveGuest();updateCart();closeCart();
   await loadCatalog();
   notify('Order #'+order.orderId+' placed successfully! Payment on delivery.');
   await showOrders();
- }catch(e){notify('Checkout failed: '+e.message,true)}
+ }catch(e){notify('Checkout failed while '+checkoutStage+': '+e.message,true);console.error('Checkout stage:',checkoutStage,'Error:',e)}
 }
 function bind(){
  $('year').textContent=new Date().getFullYear();
