@@ -183,3 +183,21 @@ Keep `.env`, `./secrets/`, Terraform `.tfstate*` and certs out of Git. `.env.exa
 | `POST /orders/checkout` | Customer JWT | Atomic stock and *server-calculated* approved wholesale prices |
 
 Retailer applications never change an account's `admin` role; user-controlled parameters cannot grant pricing privileges. User-facing search remains public retail prices; signed-in approved retailers see their effective price from the secured pricing endpoint. Do not enter real customer GSTINs in a public test log, GitHub issue, or screenshot. After changing the discount environment variable, restart the API (it uses cached settings) and test a new unpaid order.
+
+
+## Troubleshooting **HTTP 502** after updating/recreating Docker containers
+
+The static website loading at port 8080 does **not** prove the backend is reachable. Nginx can still serve HTML while failing to proxy requests. The API deliberately responds with **503** when OpenSearch is unavailable; **502** commonly indicates Nginx couldn't connect to the API container (for example, when its IP changed and a running Nginx cached the old address). The updated gateway resolves the API hostname with Docker DNS (`127.0.0.11`) and refreshes the address when containers change.
+
+Run this from the project root:
+
+```bash
+git pull --ff-only origin feat/nothing
+docker compose up -d --build --force-recreate gateway api
+docker compose ps
+bash scripts/check-search.sh
+```
+
+The diagnostic compares Nginx and direct API responses and checks the OpenSearch cluster and the `free` product query; it does not print secrets. If **gateway=502, direct API=200**, the issue is gateway DNS/routing. If **direct API isn't 200**, inspect `docker compose logs --tail=150 api migrate`. If **direct API search=503**, check OpenSearch then run `docker compose exec -T api python -m scripts.reindex` after the service is healthy. Never erase your database volume just to fix search. If your computer has another Compose project still using port 8080, stop it before running this project.
+
+The GitHub Docker integration workflow now also deliberately **recreates the API container without recreating Nginx**, then checks gateway health and the real OpenSearch search results. This guards against a recurrence of stale upstream DNS.

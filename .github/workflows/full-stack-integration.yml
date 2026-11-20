@@ -29,6 +29,20 @@ jobs:
         run: bash scripts/verify.sh
       - name: Concurrent last-unit checkout (PostgreSQL locking)
         run: docker compose exec -T api python -m scripts.concurrency_check
+      - name: Check gateway resolves a newly recreated API container
+        run: |
+          docker compose exec -T gateway nginx -t
+          docker compose exec -T gateway nginx -T 2>&1 | grep -F 'resolver 127.0.0.11 valid=5s'
+          docker compose up -d --no-deps --force-recreate api
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 5 http://localhost:8080/api/health/ready >/dev/null; then break; fi
+            if [ "$attempt" = "30" ]; then
+              echo "Gateway still cannot reach a recreated API container"
+              exit 1
+            fi
+            sleep 2
+          done
+          bash scripts/check-search.sh
       - name: Print service logs on failure
         if: failure()
         run: docker compose logs --tail=220 api migrate outbox consumer notifications postgres kafka opensearch rabbitmq prometheus grafana gateway
