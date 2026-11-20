@@ -193,6 +193,7 @@ public class ProductServiceImpl implements ProductService {
         existingproduct.setDiscount(product.getDiscount());
         existingproduct.setPrice(product.getPrice());
         existingproduct.setSpecialPrice(product.getSpecialPrice());
+        existingproduct.setCity(product.getCity());
         // save to db
         Product savedProduct=productRepo.save(existingproduct);
         domainEvents.record("PRODUCT_CHANGED", savedProduct.getProductId(), null);
@@ -322,6 +323,7 @@ public class ProductServiceImpl implements ProductService {
         existingproduct.setDiscount(product.getDiscount());
         existingproduct.setPrice(product.getPrice());
         existingproduct.setSpecialPrice(product.getSpecialPrice());
+        existingproduct.setCity(product.getCity());
         // save to db
         Product savedProduct=productRepo.save(existingproduct);
         domainEvents.record("PRODUCT_CHANGED", savedProduct.getProductId(), null);

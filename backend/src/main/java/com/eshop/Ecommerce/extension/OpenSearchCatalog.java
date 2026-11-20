@@ -36,7 +36,7 @@ public class OpenSearchCatalog {
    Map<String,Object> doc=new LinkedHashMap<>();
    doc.put("productId",product.getProductId());doc.put("productName",product.getProductName());
    doc.put("description",product.getDescription());doc.put("category",product.getCategory()==null?"":product.getCategory().getCategoryName());
-   doc.put("city","");doc.put("price",product.getSpecialPrice());doc.put("quantity",product.getQuantity());doc.put("image",product.getImage());
+   doc.put("city",product.getCity()==null?"":product.getCity());doc.put("price",product.getSpecialPrice());doc.put("quantity",product.getQuantity());doc.put("image",product.getImage());
    call("PUT","/nothing-products/_doc/"+id,doc);
   },()->delete(id));
  }

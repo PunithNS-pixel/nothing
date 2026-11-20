@@ -65,6 +65,9 @@ public class OrderServiceImpl implements OrderService {
         Address address = addressRepository.findById(addressId)
                 .orElseThrow(() -> new ResourceNotFoundException("Address", "addressId", addressId));
 
+        if(address.getUser()==null || !emailId.equalsIgnoreCase(address.getUser().getEmail())) {
+            throw new APIException("Shipping address does not belong to the current customer");
+        }
         Order order = new Order();
         order.setEmail(emailId);
         order.setOrderDate(LocalDate.now());

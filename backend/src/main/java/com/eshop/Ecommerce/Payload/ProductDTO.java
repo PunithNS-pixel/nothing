@@ -13,6 +13,7 @@ public class ProductDTO {
     private Long ProductId;
     private String ProductName;
     private String image;
+    private String city;
     private Integer quantity;
     private double price;
     private double discount;

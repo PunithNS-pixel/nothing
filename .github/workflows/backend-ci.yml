@@ -36,6 +36,10 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      - name: Validate frontend JavaScript
+        run: |
+          node --check nothing-coffee/app.js
+          node --check nothing-coffee/backend.js
       - name: Maven compile and tests
         working-directory: backend
         run: mvn -B clean verify

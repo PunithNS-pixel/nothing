@@ -135,6 +135,36 @@
       location.reload();
     }catch(e){show("Checkout failed: "+e.message);}
   }
+
+  // Search UI is backed by OpenSearch, not the static demonstration product array.
+  const searchButton=document.createElement("button");
+  searchButton.type="button";
+  searchButton.className="text-button";
+  searchButton.textContent="SEARCH";
+  document.querySelector(".header-actions")?.prepend(searchButton);
+  searchButton.addEventListener("click",async()=>{
+    const input=await ask("SEARCH THE STORE",[{name:"query",label:"Product name or keyword",placeholder:"Try cofee"}],"Search");
+    if(!input?.query)return;
+    try{
+      const results=await api("/api/search/products?q="+encodeURIComponent(input.query));
+      const hits=Array.isArray(results.hits?.hits)?results.hits.hits:[];
+      dialog.replaceChildren();
+      const title=document.createElement("h2");title.textContent="SEARCH RESULTS";dialog.appendChild(title);
+      const list=document.createElement("div");list.style.cssText="display:grid;gap:12px;max-height:350px;overflow:auto";
+      hits.forEach(hit=>{
+        const p=hit._source||{};const item=document.createElement("div");
+        item.style.cssText="border-bottom:1px solid #ddd;padding:8px 0;font:14px system-ui";
+        const heading=document.createElement("strong");heading.textContent=p.productName||"Product";
+        const details=document.createElement("p");
+        details.textContent=[rupees(p.price||0),p.city||"City unavailable",p.quantity>0?"In stock":"Out of stock"].join(" · ");
+        item.append(heading,details);list.appendChild(item);
+      });
+      if(!hits.length){const empty=document.createElement("p");empty.textContent="No matching products.";list.appendChild(empty);}
+      dialog.appendChild(list);
+      const close=document.createElement("button");close.textContent="Close";close.style.cssText="margin-top:18px;padding:10px 18px";
+      close.onclick=()=>dialog.close();dialog.appendChild(close);dialog.showModal();
+    }catch(e){show("Search failed: "+e.message);}
+  });
   window.NothingBackend={api,account,checkout,refreshCatalog};
   refreshCatalog();
 })();
