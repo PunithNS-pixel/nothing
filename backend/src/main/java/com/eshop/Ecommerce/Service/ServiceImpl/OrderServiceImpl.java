@@ -10,6 +10,7 @@ import com.eshop.Ecommerce.Repositories.*;
 import com.eshop.Ecommerce.Service.CartService;
 import com.eshop.Ecommerce.Service.OrderService;
 import com.eshop.Ecommerce.Util.AuthUtil;
+import com.eshop.Ecommerce.extension.DomainEvents;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,10 +54,15 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     AuthUtil authUtil;
+    @Autowired
+    DomainEvents domainEvents;
 
     @Override
     @Transactional
     public OrderDTO placeOrder(String emailId, Long addressId, String paymentMethod, String pgName, String pgPaymentId, String pgStatus, String pgResponseMessage) {
+        if (!"COD".equalsIgnoreCase(paymentMethod)) {
+            throw new APIException("Online payments require a verified Stripe webhook; only COD is enabled");
+        }
         Cart cart = cartRepository.findCartByEmail(emailId);
         if (cart == null) {
             throw new ResourceNotFoundException("Cart", "email", emailId);
@@ -75,18 +81,25 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderStatus("Accepted");
         order.setAddress(address);
 
-        Payment payment = new Payment(paymentMethod, pgPaymentId, pgStatus, pgResponseMessage, pgName);
-        payment.setOrder(order);
-        payment = paymentRepository.save(payment);
-        order.setPayment(payment);
-
+        Payment payment = new Payment("CASH_ON_DELIVERY", null, "PENDING", "Pay on delivery", "COD");
         Order savedOrder = orderRepository.save(order);
+        payment.setOrder(savedOrder);
+        payment = paymentRepository.save(payment);
+        savedOrder.setPayment(payment);
+        savedOrder = orderRepository.save(savedOrder);
 
-        List<CartItem> cartItems = cart.getCartItems();
+        List<CartItem> cartItems = new ArrayList<>(cart.getCartItems());
         if (cartItems.isEmpty()) {
             throw new APIException("Cart is empty");
         }
 
+        // Deterministic locking order prevents inter-product deadlocks.
+        for (CartItem item : cartItems.stream().sorted(java.util.Comparator.comparing(i -> i.getProduct().getProductId())).toList()) {
+            if (item.getQuantity() == null || item.getQuantity() < 1 ||
+                productRepository.reserveStock(item.getProduct().getProductId(),item.getQuantity()) != 1) {
+                throw new APIException("Insufficient stock for product " + item.getProduct().getProductId());
+            }
+        }
         List<OrderItem> orderItems = new ArrayList<>();
         for (CartItem cartItem : cartItems) {
             OrderItem orderItem = new OrderItem();
@@ -100,21 +113,22 @@ public class OrderServiceImpl implements OrderService {
 
         orderItems = orderItemRepository.saveAll(orderItems);
 
-        cart.getCartItems().forEach(item -> {
+        new ArrayList<>(cart.getCartItems()).forEach(item -> {
             int quantity = item.getQuantity();
             Product product = item.getProduct();
 
-            // Reduce stock quantity
-            product.setQuantity(product.getQuantity() - quantity);
-
-            // Save product back to the database
-            productRepository.save(product);
+            // Stock was already reserved atomically in PostgreSQL above.
 
             // Remove items from cart
             cartService.deleteProductFromCart(cart.getCartId(), item.getProduct().getProductId());
         });
 
+        domainEvents.record("ORDER_PLACED", null, savedOrder.getOrderId());
+        for (CartItem item : cartItems) {
+            domainEvents.record("INVENTORY_CHANGED", item.getProduct().getProductId(), savedOrder.getOrderId());
+        }
         OrderDTO orderDTO = modelMapper.map(savedOrder, OrderDTO.class);
+        if (orderDTO.getOrderItems() == null) orderDTO.setOrderItems(new ArrayList<>());
         orderItems.forEach(item -> orderDTO.getOrderItems().add(modelMapper.map(item, OrderItemDTO.class)));
 
         orderDTO.setAddressId(addressId);
