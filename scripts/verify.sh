@@ -20,7 +20,9 @@ for attempt in {1..12}; do
 done
 echo '[3c/10] OpenSearch health report'
 "${CURL[@]}" "$BASE/health/search";echo
-echo '[4/10] Prometheus endpoint' 
+echo '[3d/10] Stripe configuration endpoint (payments optional until secrets provided)'
+"${CURL[@]}" "$BASE/payments/stripe/config" | python3 -c 'import json,sys; c=json.load(sys.stdin);assert c["currency"]=="INR"; print("Stripe configured:", c["enabled"],"test mode:",c["test_mode"])'
+echo '[4/10] Prometheus endpoint'  
 "${CURL[@]}" "$BASE/metrics" | python3 -c 'import sys; s=sys.stdin.read(); assert "store_http_requests_total" in s; print("HTTP metrics OK")'
 echo '[5/10] Kafka topic'; docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe --topic store.events
 echo '[6/10] RabbitMQ queue'; docker compose exec -T rabbitmq rabbitmqctl list_queues name messages consumers | grep 'order.confirmations'

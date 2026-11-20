@@ -14,7 +14,7 @@
  const hero = $('#home');
  const accountDialog=$('#accountDialog'),searchDialog=$('#searchDialog'),ordersDialog=$('#ordersDialog'),retailerDialog=$('#retailerDialog');
  let active=0, city=localStorage.getItem('nothing-city')||'Bengaluru', access=sessionStorage.getItem('nothing-access')||'', refresh=sessionStorage.getItem('nothing-refresh')||'', currentUser=null;
- let cart={}, productsReady=false, checkoutKey=null, mode='login', working=false, retailerStatus=null;
+ let cart={}, productsReady=false, checkoutKey=null, stripeKey=null, stripeConfigured=false, mode='login', working=false, retailerStatus=null;
  const byKey = key => catalog.find(p=>p.key===key);
  const productId = key => byKey(key)?.id;
  const showStatus=(message,error=false)=>{const el=$('#storeStatus');el.textContent=message;el.classList.toggle('error',error);el.hidden=false;clearTimeout(showStatus.timer);showStatus.timer=setTimeout(()=>el.hidden=true,6000);};
@@ -107,10 +107,41 @@
  async function addToCart(key){if(!productsReady){showStatus('Catalog is still loading.',true);return;}await setQuantity(key,(cart[key]||0)+1);if(access)showStatus('Added to cart. Open CART to review.');}
  $('#heroAdd').addEventListener('click',()=>addToCart(catalog[active].key));$$('[data-add]').forEach(button=>button.addEventListener('click',()=>addToCart(button.dataset.add)));$('#bundleButton').addEventListener('click',()=>addToCart('mixed'));
  $('#deliveryCity').addEventListener('change',async e=>{city=e.target.value;localStorage.setItem('nothing-city',city);$('#searchCity').value=city;checkoutKey=null;try{await loadCart();await refreshStock();}catch(err){showStatus(err.message,true);}});
+ async function loadStripeConfig(){
+  try{const cfg=await api('/payments/stripe/config');stripeConfigured=Boolean(cfg.enabled);$('#payWithStripe').disabled=!stripeConfigured;$('#stripeHelp').textContent=stripeConfigured?(cfg.test_mode?'Stripe TEST mode is enabled. No live money is charged.':'Stripe hosted card checkout is available.'):'Stripe is not configured yet. Contact the store owner to enable secure card payments.';}
+  catch{$('#payWithStripe').disabled=true;$('#stripeHelp').textContent='Stripe payment is currently unavailable.';}
+ }
+ $('#payWithStripe').addEventListener('click',async()=>{
+  if(working)return;
+  if(!access){closeCart();accountDialog.showModal();showStatus('Sign in before paying.',true);return;}
+  if(!stripeConfigured){showStatus('Stripe payments are not configured yet.',true);return;}
+  if(!Object.keys(cart).length){showStatus('Your cart is empty.',true);return;}
+  working=true;$('#payWithStripe').disabled=true;
+  if(!stripeKey)stripeKey=(globalThis.crypto?.randomUUID?.()||`stripe-${Date.now()}-${Math.random()}`);
+  try{
+   const payment=await api('/payments/stripe/checkout',{method:'POST',headers:{'Idempotency-Key':stripeKey},body:JSON.stringify({city})});
+   if(!payment.checkout_url || !payment.checkout_url.startsWith('https://'))throw new Error('Stripe did not return a secure payment page.');
+   window.location.assign(payment.checkout_url);
+  }catch(err){showStatus(`Stripe checkout failed: ${err.message}`,true);working=false;$('#payWithStripe').disabled=false;}
+ });
+ async function handleStripeReturn(){
+  const params=new URLSearchParams(location.search),flow=params.get('stripe'),oid=params.get('order_id');
+  if(!flow||!oid)return;
+  history.replaceState(null,'',location.pathname+location.hash);
+  if(!access){showStatus('Sign in to check your Stripe payment status.',true);return;}
+  try{
+    if(flow==='cancel')await api(`/payments/stripe/orders/${encodeURIComponent(oid)}/cancel`,{method:'POST'});
+    const payment=await api(`/payments/stripe/orders/${encodeURIComponent(oid)}`);
+    await loadCart();await refreshStock();
+    if(payment.payment_status==='paid')showStatus(`Stripe payment confirmed. Order #${oid.slice(0,8)} placed.`);
+    else if(flow==='cancel'&&payment.payment_status==='expired')showStatus('Stripe Checkout cancelled. Stock released; your cart is still available.');
+    else showStatus(`Payment status: ${payment.payment_status}. A verified Stripe webhook will confirm your order.`);
+  }catch(err){showStatus('Could not confirm Stripe payment status: '+err.message,true);}
+ }
  $('#checkoutButton').addEventListener('click',async()=>{
   if(working)return;if(!access){closeCart();accountDialog.showModal();return showStatus('Sign in before checkout.');}
   if(!Object.keys(cart).length)return showStatus('Your cart is empty.',true);
-  if(!confirm(`Place your order for ${$('#subtotal').textContent} in ${city}? This places an unpaid order and reserves inventory. No payment will be collected.`))return;
+  if(!confirm(`Place your UNPAID / CASH-ON-DELIVERY order for ${$('#subtotal').textContent} in ${city}? No card payment is collected now.`))return;
   working=true;$('#checkoutButton').disabled=true;
   if(!checkoutKey)checkoutKey=(globalThis.crypto?.randomUUID?.()||`order-${Date.now()}-${Math.random()}`);
   try{const order=await api('/orders/checkout',{method:'POST',headers:{'Idempotency-Key':checkoutKey},body:JSON.stringify({city})});checkoutKey=null;await loadCart();await refreshStock();closeCart();showStatus(`Order ${order.id.slice(0,8)} placed. Total: ${money(order.total)}. Payment not collected.`);}
@@ -125,7 +156,7 @@
   catch(err){$('#accountFeedback').textContent=err.message;}finally{$('#accountSubmit').disabled=false;}
  });
  $('#signOut').onclick=async()=>{try{if(refresh)await api('/auth/logout',{method:'POST',body:JSON.stringify({refresh_token:refresh})});}catch{}clearTokens();renderCart();updateAccount();accountDialog.close();showStatus('Signed out.');};
- $('#myOrders').onclick=async()=>{accountDialog.close();ordersDialog.showModal();$('#orderHistory').textContent='Loading orders…';try{const data=await api('/orders');$('#orderHistory').replaceChildren();if(!data.items.length){$('#orderHistory').textContent='No orders yet.';return;}for(const order of data.items){const el=document.createElement('div');el.className='history-entry';const h=document.createElement('strong');h.textContent=`${order.status.toUpperCase()} · ${money(order.total)}`;const p=document.createElement('p');p.textContent=`#${order.id.slice(0,8)} · ${order.city} · ${new Date(order.created_at).toLocaleDateString('en-IN')}`;const items=document.createElement('p');items.textContent=order.items.map(i=>`${i.name} × ${i.quantity}`).join(', ');el.append(h,p,items);$('#orderHistory').append(el);}}catch(err){$('#orderHistory').textContent=err.message;}};
+ $('#myOrders').onclick=async()=>{accountDialog.close();ordersDialog.showModal();$('#orderHistory').textContent='Loading orders…';try{const data=await api('/orders');$('#orderHistory').replaceChildren();if(!data.items.length){$('#orderHistory').textContent='No orders yet.';return;}for(const order of data.items){const el=document.createElement('div');el.className='history-entry';const h=document.createElement('strong');h.textContent=`${order.status.toUpperCase()} · ${order.payment_status?.toUpperCase()||'UNPAID'} · ${money(order.total)}`;const p=document.createElement('p');p.textContent=`#${order.id.slice(0,8)} · ${order.city} · ${new Date(order.created_at).toLocaleDateString('en-IN')}`;const items=document.createElement('p');items.textContent=order.items.map(i=>`${i.name} × ${i.quantity}`).join(', ');el.append(h,p,items);if(order.payment_method==='stripe'&&order.payment_status==='pending'){const cancel=document.createElement('button');cancel.className='underlined-link';cancel.textContent='CANCEL PENDING STRIPE PAYMENT';cancel.onclick=async()=>{try{const payment=await api(`/payments/stripe/orders/${encodeURIComponent(order.id)}/cancel`,{method:'POST'});showStatus(`Stripe payment: ${payment.payment_status}`);ordersDialog.close();$('#myOrders').click();}catch(e){showStatus(e.message,true);}};el.append(cancel);}$('#orderHistory').append(el);}}catch(err){$('#orderHistory').textContent=err.message;}};
  $('#ordersClose').onclick=()=>ordersDialog.close();
  $('#searchBtn').onclick=()=>{searchDialog.showModal();$('#searchQuery').focus();};$('#searchClose').onclick=()=>searchDialog.close();
  $('#searchForm').addEventListener('submit',async e=>{e.preventDefault();const query=$('#searchQuery').value.trim(),c=$('#searchCity').value,lo=$('#minPrice').value,hi=$('#maxPrice').value;$('#searchResults').textContent='Searching OpenSearch…';try{
@@ -223,4 +254,7 @@
 
  async function init(){updateAccount();renderCart();await loadCatalog();if(access){try{currentUser=await api('/auth/me');await refreshPricing();await loadCart();updateAccount();}catch{clearTokens();updateAccount();renderCart();}}}
  init();
+ loadStripeConfig();
+ // Redirect only starts UI feedback; the webhook marks payment paid on the backend.
+ if(new URLSearchParams(location.search).has("stripe"))setTimeout(handleStripeReturn,1100);
 })();

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     admin_email: str = 'admin@example.com'
     admin_password: str = ''
     retailer_discount_percent: int = 15
+    stripe_secret_key: str = ''
+    stripe_webhook_secret: str = ''
+    public_base_url: str = 'http://localhost:8080'
     environment: str = 'development'
 
 @lru_cache

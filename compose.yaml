@@ -68,6 +68,11 @@ services:
     depends_on:
       migrate: {condition: service_completed_successfully}
     command: ['python','-m','workers.consumer']
+  stripe-reconciler:
+    <<: *app
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    command: ['python','-m','workers.stripe_reservations']
   notifications:
     <<: *app
     depends_on:

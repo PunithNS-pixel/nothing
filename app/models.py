@@ -76,6 +76,14 @@ class Order(Base):
     idempotency_key: Mapped[str] = mapped_column(String(128))
     city: Mapped[str] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(32), default='placed')
+    # COD remains unpaid until collected. Stripe orders reserve inventory and only
+    # become placed/paid after a verified provider webhook.
+    payment_method: Mapped[str] = mapped_column(String(16), default='cod')
+    payment_status: Mapped[str] = mapped_column(String(24), default='unpaid')
+    stripe_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reserved_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     items: Mapped[list['OrderItem']] = relationship(lazy='selectin', cascade='all,delete-orphan')

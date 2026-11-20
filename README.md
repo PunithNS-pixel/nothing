@@ -201,3 +201,33 @@ bash scripts/check-search.sh
 The diagnostic compares Nginx and direct API responses and checks the OpenSearch cluster and the `free` product query; it does not print secrets. If **gateway=502, direct API=200**, the issue is gateway DNS/routing. If **direct API isn't 200**, inspect `docker compose logs --tail=150 api migrate`. If **direct API search=503**, check OpenSearch then run `docker compose exec -T api python -m scripts.reindex` after the service is healthy. Never erase your database volume just to fix search. If your computer has another Compose project still using port 8080, stop it before running this project.
 
 The GitHub Docker integration workflow now also deliberately **recreates the API container without recreating Nginx**, then checks gateway health and the real OpenSearch search results. This guards against a recurrence of stale upstream DNS.
+
+
+## Stripe hosted Checkout (optional — separate from COD/unpaid)
+
+Stripe checkout is **disabled by default**, and no live payment keys are embedded in the repository. Your Stripe account must be eligible; new India-based Stripe merchant accounts remain **invite-only**. The project can be tested with Stripe test-mode keys and the Stripe CLI, but an actual Stripe merchant account and webhook credentials must be supplied and verified by you.
+
+### Setup for test payments
+
+1. Obtain `sk_test_...` from your Stripe Dashboard (test mode).
+2. Install the [Stripe CLI](https://docs.stripe.com/stripe-cli) on your Mac, run `stripe login`, then in a separate terminal run:
+   ```bash
+   stripe listen --forward-to http://localhost:8080/api/payments/stripe/webhook
+   ```
+   Copy the webhook signing secret `whsec_...` printed by the CLI.
+3. Add these keys **only** to your private `.env`:
+   ```dotenv
+   STRIPE_SECRET_KEY=sk_test_YOUR_REAL_TEST_SECRET
+   STRIPE_WEBHOOK_SECRET=whsec_YOUR_CLI_WEBHOOK_SECRET
+   PUBLIC_BASE_URL=http://localhost:8080
+   ```
+4. Rebuild: `docker compose up -d --build`, and run `docker compose run --rm migrate` (the migration also runs automatically as a dependency).
+5. Refresh the website and sign in. Add Energy products and click **PAY WITH STRIPE**. Use a card from [Stripe's testing guide](https://docs.stripe.com/testing); no live money is collected in test mode. The separate **UNPAID / COD** button still creates an unpaid order.
+6. Stripe redirects you back to the website. The browser return is *not proof of payment*: only a signed `checkout.session.completed` webhook with `payment_status=paid` marks the order paid. Check **Account → My Orders** and `docker compose logs -f api stripe-reconciler outbox consumer`.
+
+The Stripe worker polls stuck/expired sessions, checks actual provider status, and restores inventory on verified expiry/failure. If a provider request may have succeeded but its session ID was not persisted, stock remains reserved for manual reconciliation rather than being released unsafely. The payment process uses idempotency keys and PostgreSQL row locking, with backend-calculated prices (including approved retailer discounts). The integration has mocked payment tests; a live hosted Stripe test Checkout cannot be certified until your Stripe credentials and reachable webhook are configured.
+
+**New API routes:** `GET /payments/stripe/config`, `POST /payments/stripe/checkout`, `GET /payments/stripe/orders/{order_id}`, `POST /payments/stripe/orders/{order_id}/cancel`, and `POST /payments/stripe/webhook`. The webhook accepts raw Stripe-signed requests, not a customer JWT.
+
+For live deployment use a public HTTPS `PUBLIC_BASE_URL`, register `https://YOUR_DOMAIN/api/payments/stripe/webhook` in Stripe Dashboard with event types `checkout.session.completed`, `checkout.session.expired`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, and replace the CLI signing secret with that endpoint's secret. **Refunds, chargebacks, full payment reconciliation/alerting, taxes, GST-compliant invoices, actual cash collection, and a security review remain required for production.**
+

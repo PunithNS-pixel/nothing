@@ -29,6 +29,11 @@ services:
       migrate: {condition: service_completed_successfully}
       rabbitmq: {condition: service_healthy}
     command: ['python','-m','workers.consumer']
+  stripe-reconciler:
+    <<: *aiven-app
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    command: ['python','-m','workers.stripe_reservations']
   notifications:
     <<: *aiven-app
     depends_on:

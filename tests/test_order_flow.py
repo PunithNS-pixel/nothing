@@ -113,3 +113,101 @@ def test_gstin_retailer_approval_and_server_side_discount(api):
     with Session(engine) as db:
         assert db.scalar(select(Order.total))==Decimal('126.65')
         assert db.scalar(select(Inventory.quantity).where(Inventory.product_id==pid))==0
+
+
+def test_stripe_checkout_requires_backend_credentials(api):
+    client,pid,engine=api
+    email='stripe-unconfigured@example.com';pw='ReallyStrongTestPassword123!'
+    assert client.post('/auth/register',json={'email':email,'password':pw}).status_code==201
+    token=login(client,email,pw)
+    assert client.post('/cart/items',headers=token,json={'product_id':pid,'city':'Bengaluru','quantity':1}).status_code==200
+    result=client.post('/payments/stripe/checkout',headers={**token,'Idempotency-Key':uuid4().hex},json={'city':'Bengaluru'})
+    assert result.status_code==503
+    with Session(engine) as db:
+        assert db.scalar(select(Inventory.quantity).where(Inventory.product_id==pid))==1
+        assert db.scalars(select(Order)).all()==[]
+
+
+def test_stripe_signed_webhook_confirms_payment_once_and_recovers_inventory(api,monkeypatch):
+    import hashlib,hmac,json,time
+    from types import SimpleNamespace
+    from app import payments
+    client,pid,engine=api
+    cfg=SimpleNamespace(stripe_secret_key='sk_test_mock_key_no_remote_calls',stripe_webhook_secret='whsec_local_test_only',
+                        environment='development',public_base_url='http://localhost:8080')
+    monkeypatch.setattr(payments,'get_settings',lambda:cfg)
+    sessions={}
+    def fake_create(**kwargs):
+        sid='cs_test_'+kwargs['client_reference_id'].replace('-','')
+        s={'id':sid,'url':'https://checkout.stripe.com/c/pay/'+sid,'status':'open',
+           'payment_status':'unpaid','amount_total':kwargs['line_items'][0]['price_data']['unit_amount'],
+           'currency':'inr','metadata':kwargs['metadata'],'client_reference_id':kwargs['client_reference_id'],
+           'payment_intent':'pi_test_123'}
+        sessions[sid]=s
+        return s
+    monkeypatch.setattr(payments.stripe.checkout.Session,'create',fake_create)
+    monkeypatch.setattr(payments.stripe.checkout.Session,'retrieve',lambda sid:sessions[sid])
+    def fake_expire(sid):
+        sessions[sid]['status']='expired';return sessions[sid]
+    monkeypatch.setattr(payments.stripe.checkout.Session,'expire',fake_expire)
+    def signed(event_type,session,valid=True):
+        payload=json.dumps({'id':'evt_'+uuid4().hex,'object':'event','type':event_type,'data':{'object':session}})
+        ts=int(time.time());secret='whsec_local_test_only' if valid else 'wrong-secret'
+        digest=hmac.new(secret.encode(),f'{ts}.{payload}'.encode(),hashlib.sha256).hexdigest()
+        return client.post('/payments/stripe/webhook',content=payload,headers={'Stripe-Signature':f't={ts},v1={digest}'})
+    pw='ReallyStrongTestPassword123!';email='stripe-test@example.com'
+    assert client.post('/auth/register',json={'email':email,'password':pw}).status_code==201
+    token=login(client,email,pw)
+    assert client.post('/cart/items',headers=token,json={'product_id':pid,'city':'Bengaluru','quantity':1}).status_code==200
+    key=uuid4().hex
+    started=client.post('/payments/stripe/checkout',headers={**token,'Idempotency-Key':key},json={'city':'Bengaluru'})
+    assert started.status_code==201,started.text
+    order_id=started.json()['order_id'];sid=next(iter(sessions))
+    assert started.json()['payment_status']=='pending'
+    again=client.post('/payments/stripe/checkout',headers={**token,'Idempotency-Key':key},json={'city':'Bengaluru'})
+    assert again.status_code==201 and again.json()['checkout_url']==started.json()['checkout_url']
+    assert client.post('/orders/checkout',headers={**token,'Idempotency-Key':uuid4().hex},json={'city':'Bengaluru'}).status_code==409
+    with Session(engine) as db:
+        assert db.scalar(select(Inventory.quantity).where(Inventory.product_id==pid))==0
+        assert db.scalars(select(Outbox).where(Outbox.event_type=='order.placed')).all()==[]
+    assert signed('checkout.session.completed',sessions[sid],valid=False).status_code==400
+    unpaid=signed('checkout.session.completed',sessions[sid])
+    assert unpaid.status_code==200 and client.get(f'/payments/stripe/orders/{order_id}',headers=token).json()['payment_status']=='pending'
+    sessions[sid]['payment_status']='paid';sessions[sid]['status']='complete'
+    assert signed('checkout.session.completed',sessions[sid]).status_code==200
+    assert signed('checkout.session.completed',sessions[sid]).status_code==200
+    record=client.get(f'/orders/{order_id}',headers=token)
+    assert record.status_code==200 and record.json()['payment_status']=='paid' and record.json()['status']=='placed'
+    with Session(engine) as db:
+        assert db.scalar(select(Inventory.quantity).where(Inventory.product_id==pid))==0
+        assert len(db.scalars(select(Outbox).where(Outbox.event_type=='order.placed')).all())==1
+    # An out-of-order expiration event must never restore already-paid inventory.
+    assert signed('checkout.session.expired',sessions[sid]).status_code==200
+    with Session(engine) as db:
+        assert db.scalar(select(Inventory.quantity).where(Inventory.product_id==pid))==0
+
+
+def test_stripe_cancel_restores_stock_once(api,monkeypatch):
+    from types import SimpleNamespace
+    from app import payments
+    client,pid,engine=api
+    monkeypatch.setattr(payments,'get_settings',lambda:SimpleNamespace(stripe_secret_key='sk_test_mock',stripe_webhook_secret='whsec_mock',environment='development',public_base_url='http://localhost:8080'))
+    session={'id':'cs_test_cancel','status':'open','payment_status':'unpaid','amount_total':14900,'currency':'inr','metadata':{}}
+    def create(**kw):session['metadata']={'order_id':kw['client_reference_id']};return {**session,'url':'https://checkout.stripe.com/c/pay/cs_test_cancel'}
+    monkeypatch.setattr(payments.stripe.checkout.Session,'create',create)
+    monkeypatch.setattr(payments.stripe.checkout.Session,'retrieve',lambda sid:session)
+    def expire(sid):session['status']='expired';return session
+    monkeypatch.setattr(payments.stripe.checkout.Session,'expire',expire)
+    email='stripe-cancel@example.com';pw='ReallyStrongTestPassword123!'
+    assert client.post('/auth/register',json={'email':email,'password':pw}).status_code==201
+    token=login(client,email,pw)
+    assert client.post('/cart/items',headers=token,json={'product_id':pid,'city':'Bengaluru','quantity':1}).status_code==200
+    init=client.post('/payments/stripe/checkout',headers={**token,'Idempotency-Key':uuid4().hex},json={'city':'Bengaluru'})
+    assert init.status_code==201,init.text
+    oid=init.json()['order_id']
+    cancelled=client.post(f'/payments/stripe/orders/{oid}/cancel',headers=token)
+    assert cancelled.status_code==200 and cancelled.json()['payment_status']=='expired'
+    assert client.post(f'/payments/stripe/orders/{oid}/cancel',headers=token).status_code==200
+    with Session(engine) as db:
+        assert db.scalar(select(Inventory.quantity).where(Inventory.product_id==pid))==1
+        assert len(db.scalars(select(Outbox).where(Outbox.event_type=='inventory.changed')).all())==2

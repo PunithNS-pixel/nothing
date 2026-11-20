@@ -259,7 +259,7 @@ def remove_cart(product_id:str,city:str,user:User=Depends(current_user),db:Sessi
     return Response(status_code=204)
 
 def order_json(order):
-    return {'id':order.id,'status':order.status,'city':order.city,'total':str(order.total),'created_at':order.created_at.isoformat(), 'items':[{'product_id':i.product_id,'name':i.name,'price':str(i.price),'quantity':i.quantity} for i in order.items]}
+    return {'id':order.id,'status':order.status,'payment_method':order.payment_method,'payment_status':order.payment_status,'city':order.city,'total':str(order.total),'created_at':order.created_at.isoformat(), 'items':[{'product_id':i.product_id,'name':i.name,'price':str(i.price),'quantity':i.quantity} for i in order.items]}
 
 @app.post('/orders/checkout',status_code=201)
 def checkout(data:CheckoutIn,idempotency_key:str=Header(...,alias='Idempotency-Key',min_length=8,max_length=128),user:User=Depends(current_user),db:Session=Depends(get_db)):
@@ -269,6 +269,10 @@ def checkout(data:CheckoutIn,idempotency_key:str=Header(...,alias='Idempotency-K
     if existing:
         if existing.city != data.city: raise HTTPException(409,'Idempotency key reused with different city')
         return order_json(existing)
+    # Prevent a COD checkout while an active Stripe reservation for the same
+    # customer/cart may still be paid; do not charge the customer twice.
+    active_payment=db.scalar(select(Order.id).where(Order.user_id==user.id,Order.payment_method=='stripe',Order.payment_status=='pending').limit(1))
+    if active_payment: raise HTTPException(409,'A Stripe checkout is pending. Finish it or cancel it before another checkout.')
     items=db.scalars(select(CartItem).where(CartItem.user_id==user.id,CartItem.city==data.city).order_by(CartItem.product_id).with_for_update()).all()
     if not items: raise HTTPException(400,'Cart is empty for this city')
     # Lock stock rows in deterministic product order to avoid deadlocks.
@@ -293,6 +297,10 @@ def checkout(data:CheckoutIn,idempotency_key:str=Header(...,alias='Idempotency-K
     audit(db,user,'order.place',order.id)
     db.commit();db.refresh(order)
     return order_json(order)
+
+# Stripe payment routes are separate from the unpaid COD checkout path.
+from app.payments import router as stripe_router
+app.include_router(stripe_router)
 
 @app.get('/orders')
 def my_orders(user:User=Depends(current_user),db:Session=Depends(get_db),page:int=Query(1,ge=1),size:int=Query(20,ge=1,le=100)):
@@ -319,6 +327,7 @@ def edit_product(product_id:str, data: ProductPatch, user:User=Depends(admin_use
 def set_fulfillment(order_id:str,data:FulfillmentStatus,user:User=Depends(admin_user),db:Session=Depends(get_db)):
     order=db.scalar(select(Order).where(Order.id==order_id).with_for_update())
     if not order: raise HTTPException(404,'Order not found')
+    if order.payment_method=='stripe' and order.payment_status!='paid': raise HTTPException(409,'Stripe payment must be verified before fulfillment')
     allowed={'placed':'processing','processing':'shipped','shipped':'delivered'}
     if allowed.get(order.status)!=data.status: raise HTTPException(409,'Invalid fulfillment transition')
     order.status=data.status
@@ -354,9 +363,10 @@ def admin_orders(page:int=Query(1,ge=1),size:int=Query(25,ge=1,le=100),_admin:Us
 def admin_summary(_admin:User=Depends(admin_user),db:Session=Depends(get_db)):
     count_users=db.scalar(select(func.count()).select_from(User).where(User.role=='customer')) or 0
     count_orders=db.scalar(select(func.count()).select_from(Order)) or 0
-    # Payment not integrated. This is gross value of UNPAID orders, not recognized revenue.
+    # Keep unpaid COD orders separate from verified Stripe receipts.
     placed_value=db.scalar(select(func.coalesce(func.sum(Order.total),0)))
-    return {'customers':count_users,'orders':count_orders,'placed_order_value':str(placed_value),'currency':'INR','payments_collected':False}
+    settled=db.scalar(select(func.coalesce(func.sum(Order.total),0)).where(Order.payment_method=='stripe',Order.payment_status=='paid'))
+    return {'customers':count_users,'orders':count_orders,'placed_order_value':str(placed_value),'stripe_paid_value':str(settled),'currency':'INR','payments_collected':bool(settled)}
 
 @app.get('/admin/audit')
 def admin_audit(page:int=Query(1,ge=1),size:int=Query(25,ge=1,le=100),_admin:User=Depends(admin_user),db:Session=Depends(get_db)):

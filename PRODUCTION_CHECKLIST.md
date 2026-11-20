@@ -12,3 +12,8 @@ To complete **before accepting real money**: live Aiven connections and validati
 - [ ] Rotate static JWT secret into KMS, use HttpOnly/SameSite cookies and CSRF protection, secure admin MFA and immutable audit logs.
 - [ ] Review GSTIN PII retention, encryption, access controls, audit notes and regulatory requirements.
 - [ ] Integration-test Aiven TLS connections and monitor search index drift, Kafka lag, RabbitMQ dead-letter queues, backup restorability.
+
+### Stripe checkout added
+- [x] Hosted Checkout Session created server-side, signed webhook validation and idempotent paid/failed transitions, database stock reservation and transactional expiry release, admin/retailer price calculations, local test walkthrough
+- [ ] Configure Stripe account keys and webhook secret privately, register reachable HTTPS webhook and test with real Stripe test mode (the connected environment cannot access your Stripe account)
+- [ ] Implement refund/reversal/dispute handling, daily Stripe reconciliation, alerting for ambiguous failed API calls, country-specific GST/payment compliance and subscription/billing policies if needed
