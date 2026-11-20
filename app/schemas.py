@@ -42,5 +42,13 @@ class ProductPatch(BaseModel):
 class FulfillmentStatus(BaseModel):
     status: str = Field(pattern='^(processing|shipped|delivered)$')
 
+class RetailerApply(BaseModel):
+    business_name: str = Field(min_length=3, max_length=160)
+    gstin: str = Field(min_length=15, max_length=15)
+
+class RetailerReview(BaseModel):
+    status: str = Field(pattern='^(approved|rejected|suspended)$')
+    review_note: str = Field(min_length=10,max_length=512)
+
 class NewsletterIn(BaseModel):
     email: EmailStr

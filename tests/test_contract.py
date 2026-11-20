@@ -23,5 +23,6 @@ def test_opensearch_query_filters():
     result=search_products(fake,'bluetoth','Electronics','Bengaluru',Decimal('100'),Decimal('2000'),1,20)
     assert result['total']==1
     assert result['items'][0]['id']=='abc'
-    assert fake.query['query']['bool']['must'][0]['multi_match']['fuzziness']=='AUTO'
+    assert fake.query['query']['bool']['should'][0]['multi_match']['fuzziness']=='AUTO'
+    assert 'name.contains' in fake.query['query']['bool']['should'][2]['match']
     assert len(fake.query['query']['bool']['filter'])==4

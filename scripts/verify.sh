@@ -12,7 +12,15 @@ for attempt in {1..20}; do
   if [ "$attempt" = 20 ]; then echo 'ERROR: OpenSearch did not index Red Edition';exit 1;fi
   sleep 3
 done
-echo '[4/10] Prometheus endpoint'
+echo '[3b/10] Search substring '"'"'free'"'"' must match Sugar Free in OpenSearch'
+for attempt in {1..12}; do
+  if "${CURL[@]}" "$BASE/search?q=free&city=Bengaluru&category=Energy%20Drinks" | python3 -c 'import json,sys;d=json.load(sys.stdin);assert any(x["name"]=="Sugar Free" for x in d["items"]); print("PASS: free → Sugar Free")' 2>/dev/null; then break; fi
+  if [ "$attempt" = 12 ]; then echo 'ERROR: query free did not return Sugar Free'; echo 'Run: docker compose exec -T api python -m scripts.reindex';exit 1;fi
+  sleep 2
+done
+echo '[3c/10] OpenSearch health report'
+"${CURL[@]}" "$BASE/health/search";echo
+echo '[4/10] Prometheus endpoint' 
 "${CURL[@]}" "$BASE/metrics" | python3 -c 'import sys; s=sys.stdin.read(); assert "store_http_requests_total" in s; print("HTTP metrics OK")'
 echo '[5/10] Kafka topic'; docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe --topic store.events
 echo '[6/10] RabbitMQ queue'; docker compose exec -T rabbitmq rabbitmqctl list_queues name messages consumers | grep 'order.confirmations'

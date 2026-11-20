@@ -22,10 +22,11 @@ class Settings(BaseSettings):
     opensearch_username: str = ''
     opensearch_password: str = ''
     opensearch_ca_file: str = ''
-    opensearch_index: str = 'store-products-v1'
+    opensearch_index: str = 'store-products-v2'
     rabbitmq_url: str = 'amqp://guest:guest@localhost:5672/'
     admin_email: str = 'admin@example.com'
     admin_password: str = ''
+    retailer_discount_percent: int = 15
     environment: str = 'development'
 
 @lru_cache

@@ -5,3 +5,10 @@ Implemented for the demo: hashed user passwords, JWT access and rotating refresh
 To complete **before accepting real money**: live Aiven connections and validation; payment provider and webhook idempotency; payment/stock reservation expiry; cancellation/refund/return workflow and inventory reconciliation; tax and shipping integrations; transactional email provider; email verification and password reset; public HTTPS and WAF; replace sessionStorage bearer tokens with hardened HttpOnly/BFF session and CSRF protection; secure RabbitMQ credentials and TLS; Kafka/OpenSearch production security configuration; PG backups/restore drills/HA; detailed health/lag dashboards and alerting; topic retention/partition planning; encrypted secrets management; load/concurrency tests against managed PostgreSQL; deployment/rollback automation; distributed tracing; privacy and retention practices; accessibility and responsive browser QA.
 
 **Local Docker modes intentionally use development-only unsecured internal components.** Local tests and CI syntax/API tests are not sufficient proof of an end-to-end live deployment. Aiven Free plans provide limited resources and may not meet production-scale HA requirements.
+
+## Retailer workflow security
+- [ ] Independently verify legal name, active GSTIN and business match via official portal (manual admin review in demo). External verification provider integration and records retention require policy review.
+- [ ] Enforce wholesale purchase eligibility, minimum quantity, tax invoices, GST place-of-supply rules, returns and refund treatments.
+- [ ] Rotate static JWT secret into KMS, use HttpOnly/SameSite cookies and CSRF protection, secure admin MFA and immutable audit logs.
+- [ ] Review GSTIN PII retention, encryption, access controls, audit notes and regulatory requirements.
+- [ ] Integration-test Aiven TLS connections and monitor search index drift, Kafka lag, RabbitMQ dead-letter queues, backup restorability.

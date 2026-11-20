@@ -10,7 +10,8 @@
 | --- | --- |
 | Frontend | Uploaded NOTHING Energy five-can design; responsive animations, cart drawer, account/search/orders/admin dialogs; real product images |
 | Authentication & RBAC | Argon2 password hashing; access JWT; refresh token rotation and logout; admin-only APIs |
-| PostgreSQL | Users, refresh tokens, six SKUs, per-city inventory, carts, orders/items, audit log, newsletter subscribers and outbox; foreign keys, uniqueness and check constraints |
+| Retailers | Business GSTIN with structure+checksum check, unique pending application, admin-controlled approval/rejection/suspension and audit note; approved 15% (configurable) server-calculated checkout pricing |
+| PostgreSQL | Users, retailer profiles, refresh tokens, six SKUs, per-city inventory, carts, orders/items, audit log, newsletter subscribers and outbox; foreign keys, uniqueness and check constraints |
 | Transaction safety | Atomic checkout; sorted `SELECT FOR UPDATE` stock and product row locks, per-customer cart lock, idempotency key; purchase-price snapshot and inventory deduction in one DB transaction |
 | Kafka | Transactional outbox → Kafka `store.events` topic; consumer dispatches events and tracks processed IDs |
 | OpenSearch | Fuzzy search (`watermelan`), filters by city, category and price; consumer updates index on product/inventory events |
@@ -37,7 +38,7 @@ docker compose ps
 docker compose exec -T api python -m scripts.seed
 ```
 
-After first seed wait a few seconds for Kafka -> OpenSearch index propagation. Do not run `docker compose down -v` unless you intend to erase data.
+The seed now rebuilds the OpenSearch index as well as producing Kafka events. A failed index rebuild is reported without corrupting PostgreSQL; retry manually as below. **Old deployments use a new `store-products-v2` OpenSearch index for substring matching.** Do not run `docker compose down -v` unless you intend to erase data.
 
 - **Storefront:** <http://localhost:8080>
 - **Swagger:** <http://localhost:8080/api/docs>
@@ -54,9 +55,10 @@ After first seed wait a few seconds for Kafka -> OpenSearch index propagation. D
 3. Add **Original**, **Sugar Free**, **Green Edition**, **Pink Edition**, **Red Edition** or **Five-Flavor Mix**. Prices and product IDs come from PostgreSQL, not the browser.
 4. Checkout to create an **unpaid demo order** and atomically deduct stock. **No money is charged**.
 5. Open ACCOUNT → MY ORDERS; orders remain after browser refresh or app restart.
-6. SEARCH: try `watermelan`, filter category `Energy Drinks`, city and price. Results are returned by **OpenSearch**, not PostgreSQL.
+6. SEARCH: try `free` (matches Sugar Free), `watermelan` (matches Red Edition), filter category `Energy Drinks`, city and price. Results are returned by **OpenSearch**, not PostgreSQL.
 7. Admin: sign in using your `.env` admin email and password; select ACCOUNT → ADMIN DASHBOARD to view customers/recent orders, update stock, move orders through `placed → processing → shipped → delivered`. Admin routes enforce RBAC on the server.
-8. Inspect outbox → Kafka → search/notification flow with the commands below.
+8. **RETAILERS** next to ACCOUNT: sign into an ordinary account first, submit legal business name and checksum-valid 15-character GSTIN; account remains pending until admin reviews. Admin dashboard → RETAILER APPLICATIONS lets staff approve/reject/suspend with a recorded review note. After approval, checkout uses **server-side** `RETAILER_DISCOUNT_PERCENT` (default 15%); client-submitted prices are ignored. The account can view the status, and prices are restored to retail if suspended. **The GST portal is not queried by the app: an authorized admin must confirm actual taxpayer identity/status independently** before clicking APPROVE.
+9. Inspect outbox → Kafka → search/notification flow with the commands below.
 
 The separately stocked Five-Flavor Mix is a **prepacked SKU**, not five individual SKUs automatically deducted from component inventories.
 
@@ -72,7 +74,15 @@ curl -fsS 'http://localhost:8080/api/products?size=100' | python3 -m json.tool
 
 # 3. Real OpenSearch typo tolerance, city/category/price filtering
 curl -fsSG http://localhost:8080/api/search --data-urlencode 'q=watermelan' --data-urlencode 'city=Bengaluru' --data-urlencode 'category=Energy Drinks' --data-urlencode 'max_price=200' | python3 -m json.tool
+curl -fsSG http://localhost:8080/api/search --data-urlencode 'q=free' --data-urlencode 'city=Bengaluru' | python3 -m json.tool
+curl -fsS http://localhost:8080/api/health/search | python3 -m json.tool
 curl -fsS http://localhost:9200/_cat/indices?v
+
+# If search is unavailable / index missing or stale, rebuild from the authoritative database
+# Do not delete the postgres data volume; inspect the consumer as well.
+docker compose logs --tail=100 opensearch consumer api
+docker compose exec -T api python -m scripts.reindex
+curl -fsSG http://localhost:8080/api/search --data-urlencode 'q=free' | python3 -m json.tool
 
 # 4. Database, stock, outbox, orders (write operations are via API only)
 docker compose exec -T postgres psql -U store -d store -c 'SELECT sku,name,price,active FROM products ORDER BY sku;'
@@ -94,9 +104,15 @@ curl -fsS http://localhost:3001/api/health
 bash scripts/demo.sh
 docker compose exec -T api python -m scripts.concurrency_check
 
-# 8. Combined smoke checks
+# 8. Retailer table and approval events
+docker compose exec -T postgres psql -U store -d store -c 'SELECT business_name, gstin, status, reviewed_at FROM retailer_profiles ORDER BY created_at DESC LIMIT 20;'
+docker compose exec -T postgres psql -U store -d store -c "SELECT event_type, count(*) FROM outbox WHERE event_type = 'retailer.reviewed' GROUP BY event_type;"
+
+# 9. Combined smoke checks
 bash scripts/verify.sh
 ```
+
+**OpenSearch diagnosis for "Search unavailable":** `docker compose ps opensearch consumer` → `docker compose logs opensearch consumer api` → `curl -fsS http://localhost:9200/_cluster/health` → `docker compose exec -T api python -m scripts.reindex` → `curl -fsSG http://localhost:8080/api/search --data-urlencode 'q=free'`. If the service itself is down, index rebuilding won't help: review memory/disk and `vm.max_map_count` first. OpenSearch is the query engine; the API does not substitute an SQL `LIKE` query.
 
 **Interpreting results:** PostgreSQL must return committed orders and decreased stock, outbox rows get `published_at`, Kafka topic exists, OpenSearch returns Red Edition for `watermelan`, RabbitMQ queue and notifier logs show confirmation tasks, Grafana `/api/health` is accessible, and Prometheus scrapes an `up` metric. Search indexing is eventually consistent; a brief delay is expected.
 
@@ -140,11 +156,12 @@ To check that the required services are *actually* on Aiven, use `docker compose
 
 ## Automated CI verification
 
-On each push to `feat/nothing`, GitHub Actions runs a **Full-stack Docker + Terraform verification** workflow. Its integration job builds the complete local Compose stack, seeds products, checks PostgreSQL/Kafka/OpenSearch/RabbitMQ/Grafana/Prometheus, performs an unpaid checkout, and runs a two-customer last-unit stock race. The Terraform job runs `terraform init` and `terraform validate` without creating any Aiven services. Re-run it via GitHub **Actions → Full-stack Docker + Terraform verification → Run workflow** and inspect the logs.
+On each push to `feat/nothing`, GitHub Actions runs a **Full-stack Docker + Terraform verification** workflow. Its integration job builds the complete local Compose stack, seeds products, checks PostgreSQL/Kafka/OpenSearch/RabbitMQ/Grafana/Prometheus, performs a real unpaid checkout, and runs a two-customer last-unit stock race. The Terraform job runs `terraform init` and `terraform validate` without creating any Aiven services. To repeat it yourself, open GitHub **Actions → Full-stack Docker + Terraform verification → Run workflow**, then inspect each job's logs.
 
 ## Technical boundaries
 
 - **Transactions:** Kafka/Opensearch/RabbitMQ processing is asynchronous (eventual consistency). PostgreSQL is source of truth; the outbox reduces lost-event risk. It is not one distributed ACID transaction.
+- **Retailer verification:** offline GSTIN syntax and Luhn check cannot prove registration is active. Admin must manually check the official GST portal and record the review; automatic government-verified approval needs a separately authorized verification integration. Tax invoices are not implemented.
 - **Admin:** dashboard and REST APIs are RBAC protected; admin data must not be exposed to customers. The dashboard shows recent 25 records; API uses pagination.
 - **Security:** credentials never committed. Browser session tokens currently reside in `sessionStorage`, which is not ideal for production XSS resistance; production should use audited HttpOnly session-cookie/BFF auth and CSRF defenses, TLS, secret manager, alerting, hardened RabbitMQ/Kafka/OpenSearch configs.
 - **Commercial launch:** no payment capture, refunds, taxes, shipment tracking, customer email verification or actual email delivery; checkout is explicitly **unpaid**, even though it immediately reduces inventory. Do not deploy as a public paid store without these additions.
@@ -152,3 +169,17 @@ On each push to `feat/nothing`, GitHub Actions runs a **Full-stack Docker + Terr
 - **Resource costs:** free Aiven plans may be subject to suspension, quotas or platform-specific restrictions.
 
 Keep `.env`, `./secrets/`, Terraform `.tfstate*` and certs out of Git. `.env.example` contains placeholders and local-only development passwords and must never be copied unchanged to production.
+
+### Retailer REST endpoints (Swagger /api/docs)
+
+| Method and path | Access | Purpose |
+| --- | --- | --- |
+| `POST /auth/register`, `POST /auth/login` | Public | Create customer account, sign in |
+| `GET /retailers/me` | Customer JWT | See own GSTIN and application status |
+| `POST /retailers/apply` | Customer JWT | Register business name and checksum-valid GSTIN; pending review |
+| `GET /retailers/prices` | Any signed-in account | Base and effective per-SKU prices; no discount until approved |
+| `GET /admin/retailers` | Admin JWT | Paginated retailer applications; private GSTIN records |
+| `PATCH /admin/retailers/{id}/review` | Admin JWT | Approve/reject/suspend with `review_note` (minimum 10 characters) |
+| `POST /orders/checkout` | Customer JWT | Atomic stock and *server-calculated* approved wholesale prices |
+
+Retailer applications never change an account's `admin` role; user-controlled parameters cannot grant pricing privileges. User-facing search remains public retail prices; signed-in approved retailers see their effective price from the secured pricing endpoint. Do not enter real customer GSTINs in a public test log, GitHub issue, or screenshot. After changing the discount environment variable, restart the API (it uses cached settings) and test a new unpaid order.

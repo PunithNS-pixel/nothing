@@ -68,3 +68,48 @@ def test_protected_customer_data(api):
     assert client.get('/products').status_code==200
     bad=client.patch(f'/admin/products/{pid}/stock',json={'city':'Bengaluru','quantity':-1})
     assert bad.status_code==401
+
+def test_gstin_retailer_approval_and_server_side_discount(api):
+    from app.retailers import gstin_checksum, validate_gstin
+    from decimal import Decimal
+    client,pid,engine=api
+    gstin_prefix='29ABCDE1234F1Z'
+    gstin=gstin_prefix+gstin_checksum(gstin_prefix)
+    assert validate_gstin(gstin)==gstin
+    with pytest.raises(ValueError): validate_gstin(gstin[:-1]+'!')
+    owner='retailer@example.com'
+    pwd='ReallyStrongTestPassword123!'
+    assert client.post('/auth/register',json={'email':owner,'password':pwd}).status_code==201
+    retailer=login(client,owner,pwd)
+    admin=login(client,'test-admin@example.com',pwd)
+    assert client.get('/retailers/me').status_code==401
+    assert client.get('/admin/retailers',headers=retailer).status_code==403
+    assert client.post('/retailers/apply',headers=retailer,json={'business_name':'Test Energy Distribution','gstin':'INVALID'}).status_code==422
+    assert client.post('/retailers/apply',headers=retailer,json={'business_name':'Test Energy Distribution','gstin':gstin}).status_code==201
+    assert client.get('/retailers/me',headers=retailer).json()['status']=='pending'
+    prices=client.get('/retailers/prices',headers=retailer).json()
+    assert prices['approved'] is False
+    assert next(x for x in prices['items'] if x['id']==pid)['effective_price']=='149.00'
+    profile=client.get('/admin/retailers',headers=admin).json()['items'][0]
+    assert profile['gstin']==gstin and profile['status']=='pending'
+    url=f'/admin/retailers/{profile["id"]}/review'
+    assert client.patch(url,headers=retailer,json={'status':'approved','review_note':'Not an admin verification'}).status_code==403
+    assert client.patch(url,headers=admin,json={'status':'approved','review_note':'Official GST portal checked manually'}).status_code==200
+    prices=client.get('/retailers/prices',headers=retailer).json()
+    assert prices['approved'] is True
+    assert next(x for x in prices['items'] if x['id']==pid)['effective_price']=='126.65'
+    assert client.post('/cart/items',headers=retailer,json={'product_id':pid,'city':'Bengaluru','quantity':1}).status_code==200
+    order=client.post('/orders/checkout',headers={**retailer,'Idempotency-Key':uuid4().hex},json={'city':'Bengaluru'})
+    assert order.status_code==201,order.text
+    assert Decimal(order.json()['total'])==Decimal('126.65')
+    assert order.json()['items'][0]['price']=='126.65'
+    # A non-retailer cannot self-approve and gets ordinary prices.
+    assert client.post('/auth/register',json={'email':'normal@example.com','password':pwd}).status_code==201
+    normal=login(client,'normal@example.com',pwd)
+    assert client.get('/retailers/prices',headers=normal).json()['items'][0]['effective_price']=='149.00'
+    assert client.post('/retailers/apply',headers=normal,json={'business_name':'Different Business','gstin':gstin}).status_code==409
+    assert client.patch(url,headers=admin,json={'status':'suspended','review_note':'Verification is no longer valid'}).status_code==200
+    assert client.get('/retailers/prices',headers=retailer).json()['items'][0]['effective_price']=='149.00'
+    with Session(engine) as db:
+        assert db.scalar(select(Order.total))==Decimal('126.65')
+        assert db.scalar(select(Inventory.quantity).where(Inventory.product_id==pid))==0

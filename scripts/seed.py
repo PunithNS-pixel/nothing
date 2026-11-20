@@ -40,3 +40,9 @@ with SessionLocal() as db:
             db.add(Outbox(event_type='product.changed',aggregate_id=product.id,payload={'product_id':product.id}))
     db.commit()
 print('Energy catalog seeded (six SKUs). Admin:', admin_email)
+# Make search useful immediately even when Kafka has not drained the outbox.
+try:
+    from scripts.reindex import main as reindex
+    reindex()
+except Exception as exc:
+    print('OpenSearch bootstrap deferred; run python -m scripts.reindex:',type(exc).__name__,str(exc)[:180])

@@ -12,9 +12,9 @@
  ];
  const money = x => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(Number(x)||0);
  const hero = $('#home');
- const accountDialog=$('#accountDialog'),searchDialog=$('#searchDialog'),ordersDialog=$('#ordersDialog');
+ const accountDialog=$('#accountDialog'),searchDialog=$('#searchDialog'),ordersDialog=$('#ordersDialog'),retailerDialog=$('#retailerDialog');
  let active=0, city=localStorage.getItem('nothing-city')||'Bengaluru', access=sessionStorage.getItem('nothing-access')||'', refresh=sessionStorage.getItem('nothing-refresh')||'', currentUser=null;
- let cart={}, productsReady=false, checkoutKey=null, mode='login', working=false;
+ let cart={}, productsReady=false, checkoutKey=null, mode='login', working=false, retailerStatus=null;
  const byKey = key => catalog.find(p=>p.key===key);
  const productId = key => byKey(key)?.id;
  const showStatus=(message,error=false)=>{const el=$('#storeStatus');el.textContent=message;el.classList.toggle('error',error);el.hidden=false;clearTimeout(showStatus.timer);showStatus.timer=setTimeout(()=>el.hidden=true,6000);};
@@ -36,7 +36,7 @@
    return payload;
  }
  const saveTokens = t => {access=t.access_token;refresh=t.refresh_token;sessionStorage.setItem('nothing-access',access);sessionStorage.setItem('nothing-refresh',refresh);};
- const clearTokens=()=>{access='';refresh='';currentUser=null;cart={};sessionStorage.removeItem('nothing-access');sessionStorage.removeItem('nothing-refresh');};
+ const clearTokens=()=>{access='';refresh='';currentUser=null;cart={};retailerStatus=null;sessionStorage.removeItem('nothing-access');sessionStorage.removeItem('nothing-refresh');resetPrices();};
  function selectFlavor(index){
   active=((index%5)+5)%5; const p=catalog[active];
   hero.classList.remove('theme-original','theme-sugarfree','theme-green','theme-pink','theme-red');
@@ -52,13 +52,23 @@
  const openCart=()=>{$('#drawerOverlay').hidden=false;$('#cartDrawer').classList.add('open');$('#cartDrawer').setAttribute('aria-hidden','false');document.body.classList.add('locked');$('#closeCart').focus({preventScroll:true});};
  $('#cartButton').addEventListener('click',()=>{renderCart();openCart();});$('#closeCart').addEventListener('click',closeCart);$('#drawerOverlay').addEventListener('click',closeCart);
  $('#deliveryCity').value=city;$('#searchCity').value=city;
+ function resetPrices(){for(const p of catalog){if(p.listPrice!=null)p.price=p.listPrice;}updatePrices();}
+ async function refreshPricing(){
+  for(const p of catalog){if(p.listPrice!=null)p.price=p.listPrice;}
+  if(access&&currentUser){
+   const data=await api('/retailers/prices');
+   retailerStatus=await api('/retailers/me');
+   for(const price of data.items){const p=catalog.find(item=>item.id===price.id);if(p)p.price=price.effective_price;}
+  } else retailerStatus=null;
+  updatePrices();renderCart();
+ }
  function updatePrices(){
   catalog.slice(0,5).forEach(p=>{const e=$(`[data-add="${p.key}"]`)?.closest('.product-card')?.querySelector('.product-price');if(e) e.innerHTML=`${p.price!=null?money(p.price):'UNAVAILABLE'} <span>/ CAN</span>`;});
   const pack=byKey('mixed');$('#bundleButton').textContent=`SHOP THE FIVE-FLAVOR MIX — ${pack.price!=null?money(pack.price):'UNAVAILABLE'} ↗`;
   $$('[data-add],#heroAdd,#bundleButton').forEach(btn=>{const key=btn.dataset.add|| (btn.id==='bundleButton'?'mixed':catalog[active].key);btn.disabled=!productId(key) || Number(byKey(key)?.stock?.[city]??0)<1;});
  }
  async function loadCatalog(){
-  try{const data=await api('/products?size=100');for(const p of catalog){const matched=data.items.find(v=>v.sku===p.sku);p.id=matched?.id;p.price=matched?.price;}productsReady=true;updatePrices();await refreshStock();}
+  try{const data=await api('/products?size=100');for(const p of catalog){const matched=data.items.find(v=>v.sku===p.sku);p.id=matched?.id;p.listPrice=matched?.price;p.price=matched?.price;}productsReady=true;updatePrices();await refreshStock();}
   catch(err){showStatus(`Product service unavailable: ${err.message}`,true);}
  }
  async function refreshStock(){
@@ -94,7 +104,7 @@
    checkoutKey=null;await loadCart();
   }catch(err){showStatus(err.message,true);}finally{working=false;}
  }
- async function addToCart(key){if(!productsReady){showStatus('Catalog is still loading.',true);return;}await setQuantity(key,(cart[key]||0)+1);if(access)openCart();}
+ async function addToCart(key){if(!productsReady){showStatus('Catalog is still loading.',true);return;}await setQuantity(key,(cart[key]||0)+1);if(access)showStatus('Added to cart. Open CART to review.');}
  $('#heroAdd').addEventListener('click',()=>addToCart(catalog[active].key));$$('[data-add]').forEach(button=>button.addEventListener('click',()=>addToCart(button.dataset.add)));$('#bundleButton').addEventListener('click',()=>addToCart('mixed'));
  $('#deliveryCity').addEventListener('change',async e=>{city=e.target.value;localStorage.setItem('nothing-city',city);$('#searchCity').value=city;checkoutKey=null;try{await loadCart();await refreshStock();}catch(err){showStatus(err.message,true);}});
  $('#checkoutButton').addEventListener('click',async()=>{
@@ -107,11 +117,11 @@
   catch(err){showStatus(`Checkout failed: ${err.message}`,true);}
   finally{working=false;$('#checkoutButton').disabled=false;}
  });
- function updateAccount(){const signed=Boolean(access&&currentUser);$('#accountBtn').textContent=signed?'MY ACCOUNT':'ACCOUNT';$('#adminDashboard').hidden=!(signed&&currentUser?.role==='admin');$('#accountGuest').hidden=signed;$('#accountSigned').hidden=!signed;$('#signedEmail').textContent=currentUser?.email||'';$('#accountTitle').textContent=signed?'YOUR ACCOUNT.':mode==='login'?'WELCOME BACK.':'JOIN THE CLUB.';$('#accountSubmit').textContent=mode==='login'?'SIGN IN ↗':'CREATE ACCOUNT ↗';$('#accountMode').textContent=mode==='login'?'NEW HERE? CREATE AN ACCOUNT':'ALREADY HAVE AN ACCOUNT? SIGN IN';}
+ function updateAccount(){const signed=Boolean(access&&currentUser);$('#accountBtn').textContent=signed?'MY ACCOUNT':'ACCOUNT';$('#adminDashboard').hidden=!(signed&&currentUser?.role==='admin');$('#accountGuest').hidden=signed;$('#accountSigned').hidden=!signed;$('#signedEmail').textContent=(currentUser?.email||'')+(retailerStatus?.approved?` · APPROVED RETAILER (−${retailerStatus.retailer_discount_percent}%)`:'');$('#accountTitle').textContent=signed?'YOUR ACCOUNT.':mode==='login'?'WELCOME BACK.':'JOIN THE CLUB.';$('#accountSubmit').textContent=mode==='login'?'SIGN IN ↗':'CREATE ACCOUNT ↗';$('#accountMode').textContent=mode==='login'?'NEW HERE? CREATE AN ACCOUNT':'ALREADY HAVE AN ACCOUNT? SIGN IN';}
  $('#accountBtn').addEventListener('click',()=>{updateAccount();accountDialog.showModal();});$('#accountClose').onclick=()=>accountDialog.close();
  $('#accountMode').onclick=()=>{mode=mode==='login'?'register':'login';$('#accountPassword').autocomplete=mode==='login'?'current-password':'new-password';$('#accountFeedback').textContent='';updateAccount();};
  $('#accountForm').addEventListener('submit',async e=>{e.preventDefault();const email=$('#accountEmail').value.trim(),password=$('#accountPassword').value;$('#accountFeedback').textContent='CONNECTING…';$('#accountSubmit').disabled=true;
-  try{if(mode==='register')await api('/auth/register',{method:'POST',body:JSON.stringify({email,password})});const tokens=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});saveTokens(tokens);currentUser=await api('/auth/me');await loadCart();updateAccount();accountDialog.close();showStatus(`Welcome, ${email}.`);}
+  try{if(mode==='register')await api('/auth/register',{method:'POST',body:JSON.stringify({email,password})});const tokens=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});saveTokens(tokens);currentUser=await api('/auth/me');await refreshPricing();await loadCart();updateAccount();accountDialog.close();showStatus(`Welcome, ${email}.`);}
   catch(err){$('#accountFeedback').textContent=err.message;}finally{$('#accountSubmit').disabled=false;}
  });
  $('#signOut').onclick=async()=>{try{if(refresh)await api('/auth/logout',{method:'POST',body:JSON.stringify({refresh_token:refresh})});}catch{}clearTokens();renderCart();updateAccount();accountDialog.close();showStatus('Signed out.');};
@@ -120,14 +130,46 @@
  $('#searchBtn').onclick=()=>{searchDialog.showModal();$('#searchQuery').focus();};$('#searchClose').onclick=()=>searchDialog.close();
  $('#searchForm').addEventListener('submit',async e=>{e.preventDefault();const query=$('#searchQuery').value.trim(),c=$('#searchCity').value,lo=$('#minPrice').value,hi=$('#maxPrice').value;$('#searchResults').textContent='Searching OpenSearch…';try{
   const data=await api(`/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(c)}&category=Energy%20Drinks${lo?`&min_price=${encodeURIComponent(lo)}`:''}${hi?`&max_price=${encodeURIComponent(hi)}`:''}`);$('#searchResults').replaceChildren();if(!data.items.length){$('#searchResults').textContent='No matching energy drinks found in that city.';return;}
-  for(const result of data.items){const p=catalog.find(x=>x.id===result.id);const row=document.createElement('div');row.className='search-result';const strong=document.createElement('strong');strong.textContent=result.name;const details=document.createElement('p');details.textContent=`${money(result.price)} · ${c}`;row.append(strong,details);if(p){const btn=document.createElement('button');btn.textContent='ADD TO CART ↗';btn.onclick=async()=>{searchDialog.close();if(city!==c){city=c;$('#deliveryCity').value=city;localStorage.setItem('nothing-city',city);await loadCart();await refreshStock();}await addToCart(p.key);};row.append(btn);}$('#searchResults').append(row);}
- }catch(err){$('#searchResults').textContent=`Search unavailable: ${err.message}`;}});
+  for(const result of data.items){const p=catalog.find(x=>x.id===result.id);const row=document.createElement('div');row.className='search-result';const strong=document.createElement('strong');strong.textContent=result.name;const details=document.createElement('p');details.textContent=`${money(p?.price??result.price)} · ${c}${retailerStatus?.approved?' · retailer price':''}`;row.append(strong,details);if(p){const btn=document.createElement('button');btn.textContent='ADD TO CART ↗';btn.onclick=async()=>{searchDialog.close();if(city!==c){city=c;$('#deliveryCity').value=city;localStorage.setItem('nothing-city',city);await loadCart();await refreshStock();}await addToCart(p.key);};row.append(btn);}$('#searchResults').append(row);}
+ }catch(err){$('#searchResults').textContent=`Search unavailable: ${err.message}. If this persists, check the OpenSearch service and reindex the catalog.`;}});
+ async function openRetailer(){
+   if(!retailerDialog.open)retailerDialog.showModal();
+   $('#retailerFeedback').textContent='';
+   await loadRetailerStatus();
+ }
+ async function loadRetailerStatus(){
+   const form=$('#retailerForm'),action=$('#retailerOpenAccount'),status=$('#retailerStatus');
+   if(!access){status.textContent='Sign in or create a personal account to apply for retailer prices.';form.hidden=true;action.hidden=false;return;}
+   action.hidden=true;
+   try{
+     retailerStatus=await api('/retailers/me');const s=retailerStatus.status;
+     status.textContent={not_applied:'Register your business below. Retailer prices require verification.',
+       pending:'PENDING REVIEW — Your application is stored. Standard prices apply until approved.',
+       approved:`APPROVED — You qualify for ${retailerStatus.retailer_discount_percent}% off list prices. This discount is enforced during checkout.`,
+       rejected:'REJECTED — Review your details or contact support. You may resubmit.',
+       suspended:'SUSPENDED — Your wholesale rates are disabled. Contact support.'}[s]||s;
+     form.hidden=!['not_applied','rejected'].includes(s);
+     if(s==='rejected'){ $('#retailerBusiness').value=retailerStatus.business_name||'';$('#retailerGstin').value=retailerStatus.gstin||'';}
+   }catch(err){status.textContent=`Unable to fetch your application: ${err.message}`;form.hidden=true;}
+ }
+ $('#retailerBtn').onclick=openRetailer;
+ $('#retailerClose').onclick=()=>retailerDialog.close();
+ $('#retailerOpenAccount').onclick=()=>{retailerDialog.close();updateAccount();accountDialog.showModal();};
+ $('#retailerForm').addEventListener('submit',async e=>{e.preventDefault();
+   $('#retailerApply').disabled=true;$('#retailerFeedback').textContent='Submitting your application…';
+   try{
+     await api('/retailers/apply',{method:'POST',body:JSON.stringify({business_name:$('#retailerBusiness').value.trim(),gstin:$('#retailerGstin').value.trim().toUpperCase()})});
+     $('#retailerFeedback').textContent='Application saved. Staff approval is required before discounted checkout.';
+     await loadRetailerStatus();
+   }catch(err){$('#retailerFeedback').textContent=err.message;}
+   finally{$('#retailerApply').disabled=false;}
+ });
  const info=$('#infoDialog');const showInfo=(title,message)=>{closeCart();$('#dialogTitle').textContent=title;$('#dialogText').textContent=message;info.showModal();};$('#dialogClose').onclick=()=>info.close();
- $('#teamButton').onclick=()=>showInfo('BUSINESS INQUIRIES.','This deployment does not send team inquiries yet. Configure a verified support mailbox or CRM before taking requests.');
+ $('#teamButton').onclick=openRetailer;
  $('#footerContact').onclick=()=>showInfo('SAY HELLO.','Please configure your verified customer-service contact details before launching this store.');
  $('#newsletterForm').addEventListener('submit',async e=>{e.preventDefault();$('#newsletterFeedback').textContent='SUBMITTING…';try{await api('/newsletter',{method:'POST',body:JSON.stringify({email:$('#emailInput').value})});$('#newsletterFeedback').textContent='YOU ARE ON THE LIST.';$('#newsletterForm').reset();}catch(err){$('#newsletterFeedback').textContent=`SIGNUP FAILED: ${err.message}`;}});
  $('#year').textContent=new Date().getFullYear();const updateHeader=()=>$('#siteHeader').classList.toggle('scrolled',window.scrollY>65);window.addEventListener('scroll',updateHeader,{passive:true});updateHeader();
- const mobileButton=$('#mobileMenuButton'),mobileMenu=$('#mobileMenu');const closeMobile=()=>{mobileMenu.hidden=true;mobileButton.setAttribute('aria-expanded','false');};mobileButton.onclick=()=>{const open=mobileMenu.hidden;mobileMenu.hidden=!open;mobileButton.setAttribute('aria-expanded',String(open));};$$('#mobileMenu a').forEach(el=>el.addEventListener('click',closeMobile));
+ const mobileButton=$('#mobileMenuButton'),mobileMenu=$('#mobileMenu');const closeMobile=()=>{mobileMenu.hidden=true;mobileButton.setAttribute('aria-expanded','false');};mobileButton.onclick=()=>{const open=mobileMenu.hidden;mobileMenu.hidden=!open;mobileButton.setAttribute('aria-expanded',String(open));};$$('#mobileMenu a').forEach(el=>el.addEventListener('click',closeMobile));$('#mobileSearch').onclick=()=>{closeMobile();$('#searchBtn').click();};$('#mobileRetailer').onclick=()=>{closeMobile();openRetailer();};$('#mobileAccount').onclick=()=>{closeMobile();$('#accountBtn').click();};
  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeCart();closeMobile();}if(document.activeElement.closest?.('.hero-selector')&&e.key==='ArrowRight')selectFlavor(active+1);if(document.activeElement.closest?.('.hero-selector')&&e.key==='ArrowLeft')selectFlavor(active-1);});
  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)hero.addEventListener('pointermove',e=>{if(e.pointerType==='touch')return;$('#heroStage').style.translate=`${(e.clientX/window.innerWidth-.5)*12}px ${(e.clientY/window.innerHeight-.5)*9}px`;});hero.addEventListener('pointerleave',()=>{$('#heroStage').style.translate='0 0';});
  let startX=null;hero.addEventListener('touchstart',e=>startX=e.changedTouches[0]?.clientX??null,{passive:true});hero.addEventListener('touchend',e=>{if(startX===null)return;const diff=e.changedTouches[0].clientX-startX;if(Math.abs(diff)>70)selectFlavor(active+(diff<0?1:-1));startX=null;},{passive:true});
@@ -141,7 +183,7 @@
  async function loadAdmin(){
   $('#adminFeedback').textContent='Loading secured admin reports…';
   try{
-   const [summary,users,orders]=await Promise.all([api('/admin/summary'),api('/admin/users?size=25'),api('/admin/orders?size=25')]);
+   const [summary,users,orders,retailers]=await Promise.all([api('/admin/summary'),api('/admin/users?size=25'),api('/admin/orders?size=25'),api('/admin/retailers?size=25')]);
    $('#adminSummary').textContent=`Customers: ${summary.customers} · Orders: ${summary.orders} · Unpaid order value: ${money(summary.placed_order_value)}`;
    $('#adminUsers').replaceChildren();for(const user of users.items){const row=document.createElement('p');row.textContent=`${user.email} · ${user.role} · ${user.active?'active':'disabled'}`;$('#adminUsers').append(row);}
    $('#adminOrders').replaceChildren();for(const order of orders.items){const row=document.createElement('div');row.className='history-entry';
@@ -149,6 +191,24 @@
     row.append(label);const next={placed:'processing',processing:'shipped',shipped:'delivered'}[order.status];
     if(next){const btn=document.createElement('button');btn.textContent=`MARK ${next.toUpperCase()}`;btn.onclick=async()=>{try{await api(`/admin/orders/${encodeURIComponent(order.id)}/fulfillment`,{method:'PATCH',body:JSON.stringify({status:next})});await loadAdmin();}catch(e){$('#adminFeedback').textContent=e.message;}};row.append(btn);}
     $('#adminOrders').append(row);
+   }
+   $('#adminRetailers').replaceChildren();
+   if(!retailers.items.length)$('#adminRetailers').textContent='No retailer applications yet.';
+   for(const retailer of retailers.items){
+     const row=document.createElement('div');row.className='history-entry';
+     const details=document.createElement('p');details.textContent=`${retailer.business_name} · ${retailer.email} · GSTIN ${retailer.gstin} · ${retailer.status}`;row.append(details);
+     const allowed={pending:['approved','rejected'],approved:['suspended'],suspended:['approved','rejected']};
+     for(const next of (allowed[retailer.status]||[])){
+       const btn=document.createElement('button');btn.textContent=`${next.toUpperCase()} ↗`;
+       btn.onclick=async()=>{
+         if(next==='approved'&&!confirm('Have you independently checked this GSTIN, taxpayer name, and active status on the official GST portal?'))return;
+         const review_note=prompt('Record evidence for this review (e.g. official portal verification date and taxpayer status). At least 10 characters:');
+         if(!review_note || review_note.trim().length<10)return;
+         try{await api(`/admin/retailers/${encodeURIComponent(retailer.id)}/review`,{method:'PATCH',body:JSON.stringify({status:next,review_note:review_note.trim()})});await loadAdmin();}
+         catch(err){$('#adminFeedback').textContent=err.message;}
+       };row.append(btn);
+     }
+     $('#adminRetailers').append(row);
    }
    $('#adminFeedback').textContent='Reports loaded from PostgreSQL. Pagination: first 25 records.';
   }catch(err){$('#adminFeedback').textContent=err.message;}
@@ -161,6 +221,6 @@
   }catch(err){$('#adminFeedback').textContent=err.message;}
  });
 
- async function init(){updateAccount();renderCart();await loadCatalog();if(access){try{currentUser=await api('/auth/me');await loadCart();updateAccount();}catch{clearTokens();updateAccount();renderCart();}}}
+ async function init(){updateAccount();renderCart();await loadCatalog();if(access){try{currentUser=await api('/auth/me');await refreshPricing();await loadCart();updateAccount();}catch{clearTokens();updateAccount();renderCart();}}}
  init();
 })();

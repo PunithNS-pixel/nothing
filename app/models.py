@@ -17,6 +17,20 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
+class RetailerProfile(Base):
+    """Approval is granted only by an admin after independent GST portal checks."""
+    __tablename__ = 'retailer_profiles'
+    __table_args__ = (CheckConstraint("status IN ('pending','approved','rejected','suspended')", name='ck_retailer_status'),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), unique=True, index=True)
+    business_name: Mapped[str] = mapped_column(String(160))
+    gstin: Mapped[str] = mapped_column(String(15), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), default='pending', index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey('users.id'), nullable=True)
+    review_note: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
 class RefreshToken(Base):
     __tablename__ = 'refresh_tokens'
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)

@@ -12,6 +12,6 @@ branch_labels=None
 depends_on=None
 
 def upgrade():
-    Base.metadata.create_all(bind=op.get_bind(), tables=[t for t in Base.metadata.sorted_tables if t.name != 'newsletter_subscribers'])
+    Base.metadata.create_all(bind=op.get_bind(), tables=[t for t in Base.metadata.sorted_tables if t.name not in ('newsletter_subscribers','retailer_profiles')])
 def downgrade():
-    Base.metadata.drop_all(bind=op.get_bind(), tables=[t for t in Base.metadata.sorted_tables if t.name != 'newsletter_subscribers'])
+    Base.metadata.drop_all(bind=op.get_bind(), tables=[t for t in Base.metadata.sorted_tables if t.name not in ('newsletter_subscribers','retailer_profiles')])

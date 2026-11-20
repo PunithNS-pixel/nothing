@@ -28,7 +28,7 @@ def reindex(product_id):
             ensure_index(c)
             if p:
                 inventory=db.scalars(select(Inventory).where(Inventory.product_id==product_id)).all()
-                index_product(c,p,inventory)
+                index_product(c,p,inventory,refresh=True)
             else: c.delete(index=get_settings().opensearch_index,id=product_id,ignore=[404])
         finally: c.close()
 
