@@ -60,9 +60,21 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderDTO placeOrder(String emailId, Long addressId, String paymentMethod, String pgName, String pgPaymentId, String pgStatus, String pgResponseMessage) {
+        // Public order route can never claim that an online payment succeeded.
         if (!"COD".equalsIgnoreCase(paymentMethod)) {
-            throw new APIException("Online payments require a verified Stripe webhook; only COD is enabled");
+            throw new APIException("Use Stripe Checkout for online payments; only COD can be placed directly");
         }
+        return saveOrder(emailId,addressId,false,null);
+    }
+
+    @Override
+    @Transactional
+    public OrderDTO placeVerifiedStripeOrder(String emailId, Long addressId, String stripeSessionId) {
+        if(stripeSessionId==null||stripeSessionId.isBlank())throw new APIException("Missing verified Stripe session");
+        return saveOrder(emailId,addressId,true,stripeSessionId);
+    }
+
+    private OrderDTO saveOrder(String emailId,Long addressId,boolean stripeVerified,String stripeSessionId){
         Cart cart = cartRepository.findCartByEmail(emailId);
         if (cart == null) {
             throw new ResourceNotFoundException("Cart", "email", emailId);
@@ -81,7 +93,9 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderStatus("Accepted");
         order.setAddress(address);
 
-        Payment payment = new Payment("CASH_ON_DELIVERY", null, "PENDING", "Pay on delivery", "COD");
+        Payment payment = stripeVerified
+            ? new Payment("STRIPE", stripeSessionId, "PAID", "Verified Stripe Checkout webhook", "Stripe")
+            : new Payment("CASH_ON_DELIVERY", null, "PENDING", "Pay on delivery", "COD");
         Order savedOrder = orderRepository.save(order);
         payment.setOrder(savedOrder);
         payment = paymentRepository.save(payment);

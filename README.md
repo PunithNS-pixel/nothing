@@ -119,3 +119,51 @@ $f.hits.hits | ForEach-Object { $_._source.productName }
 Expected example: `Bluetooth Wireless Earbuds`. The query will not invent a product such as Silkbuds unless that product actually exists in PostgreSQL and has been indexed.
 
 To explicitly rebuild the search index, use the authenticated admin-only endpoint `POST /api/admin/search/reindex`. The v1 index remains untouched; v2 is a new index to support the new analysis settings. Production-scale catalogs should use versioned aliases and background reindexing rather than a synchronous first-search bootstrap.
+
+## Same-origin checkout authentication and Stripe-hosted payments
+
+**Important change:** The storefront at `http://localhost:8000` now calls `/api/...` on the **same origin**. Nginx proxies those requests to Spring Boot at `app:8080` on the Docker network. Rebuild/recreate the `frontend` service too; merely rebuilding `app` will not install the new reverse-proxy configuration. The Java API remains reachable directly at `http://localhost:8090` for debugging.
+
+```powershell
+git switch backend
+git pull origin backend
+docker compose -f backend/compose.yml --env-file backend/.env up -d --build --force-recreate app frontend
+# Same-origin auth status: unauthenticated returns 401
+curl.exe -i http://localhost:8000/api/auth/user
+```
+
+The end-to-end browser-cookie regression test `CustomerBrowserCheckoutTest` signs in, extracts the HttpOnly JWT cookie, saves a cart, creates an address and places a COD order. This protects against the observed "Full authentication is required" regressions.
+
+**Stripe configuration (test mode first):** Add the following to `backend/.env`, *not* to Git:
+
+```dotenv
+STRIPE_SECRET_KEY=sk_test_YOUR_TEST_SECRET
+STRIPE_WEBHOOK_SECRET=whsec_YOUR_LOCAL_STRIPE_CLI_SECRET
+STRIPE_SUCCESS_URL=http://localhost:8000/?checkout=stripe-success
+STRIPE_CANCEL_URL=http://localhost:8000/?checkout=stripe-cancel
+```
+
+Get your **test-mode secret key** from Stripe Dashboard. Install [Stripe CLI](https://docs.stripe.com/stripe-cli), authenticate locally with `stripe login`, and forward signed webhooks:
+
+```powershell
+stripe listen --forward-to localhost:8000/api/stripe/webhook
+```
+
+Copy the `whsec_` signing secret printed by the running Stripe CLI into `STRIPE_WEBHOOK_SECRET`. Recreate the app after changing environment variables:
+
+```powershell
+docker compose -f backend/compose.yml --env-file backend/.env up -d --force-recreate app frontend
+```
+
+Select **PAY SECURELY WITH STRIPE** after choosing a delivery address. The server reads authenticated cart items and PostgreSQL prices, creates a Stripe-hosted Checkout Session and redirects the browser to Stripe. The checkout success redirect is **not** accepted as proof of payment. Only an event signed with `STRIPE_WEBHOOK_SECRET` whose session is paid, INR, correct amount, and matches the stored attempt may create the order. The order uses PostgreSQL atomic stock reservation; the existing Kafka outbox emits order/inventory events.
+
+Endpoints:
+
+- `POST /api/checkout/stripe/session` — authenticated, body `{"addressId": 123}`, returns a hosted Stripe Checkout URL.
+- `POST /api/stripe/webhook` — public endpoint but **Stripe-Signature verified**. Unauthenticated unsigned requests are rejected.
+- `GET /api/checkout/stripe/status?sessionId=...` — authenticated and owner-scoped status. Never use browser redirects as evidence of payment.
+- The old unsafe client-amount `/api/order/stripe-client-secret` has been removed. Public order creation still allows **COD only**; the Stripe order path is internal to the verified webhook.
+
+**Payment limitations before production:** This implementation uses an immutable Stripe Checkout amount and an attempt record, but inventory is not reserved before payment. If stock becomes unavailable or the user's cart changes between opening Stripe and its paid webhook, the transaction rejects fulfillment and Stripe retries; an operator must investigate and potentially refund the payment through Stripe Dashboard. Automatic refund/reconciliation, cart locking or time-limited reservations, retry/error monitoring, webhook DLQ, PCI/compliance review, HTTPS, CSRF controls, and full live Stripe tests are needed before taking real money. Until then **use Stripe test-mode keys only**. Stripe keys are private, and a production webhook should be configured with your public HTTPS domain.
+
+**Aiven:** The same Nginx proxy and Stripe variables are included in `backend/compose.aiven.yml`; this is configuration only, not proof of a live Aiven deployment.

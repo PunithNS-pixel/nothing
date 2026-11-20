@@ -292,6 +292,47 @@ async function showOrders(){
   const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>$('modal').close();root.append(close);$('modal').showModal();
  }catch(e){notify('Could not load orders: '+e.message,true)}
 }
+async function choosePaymentMethod(total){
+ return new Promise(resolve=>{
+  const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
+  const h=document.createElement('h2');h.textContent='HOW WOULD YOU LIKE TO PAY?';
+  const p=document.createElement('p');p.textContent='Order total: '+money(total);
+  root.append(h,p);
+  const choices=document.createElement('div');choices.className='account-choices';root.append(choices);
+  let finished=false;
+  const done=v=>{if(finished)return;finished=true;dialog.close();resolve(v)};
+  for(const [method,label] of [['COD','CASH ON DELIVERY'],['STRIPE','PAY SECURELY WITH STRIPE']]){
+   const b=document.createElement('button');b.type='button';b.className='primary-choice';
+   b.textContent=label;b.onclick=()=>done(method);choices.append(b);
+  }
+  const cancel=document.createElement('button');cancel.className='outline-button';
+  cancel.textContent='CANCEL';cancel.onclick=()=>done(null);root.append(cancel);
+  dialog.oncancel=e=>{e.preventDefault();done(null)};dialog.showModal();
+ });
+}
+async function resumeStripeCheckout(){
+ const url=new URL(location.href),state=url.searchParams.get('checkout');
+ if(!state)return;
+ url.searchParams.delete('checkout');
+ const sessionId=url.searchParams.get('session_id');
+ url.searchParams.delete('session_id');
+ history.replaceState(null,'',url.toString());
+ if(state==='stripe-cancel'){
+  notify('Stripe checkout was cancelled. No order was placed; your cart is saved.');return;
+ }
+ if(state==='stripe-success'){
+  if(!sessionId){notify('Payment returned but Stripe session reference is missing. Check your orders.',true);return}
+  try{
+   const data=await request('/api/checkout/stripe/status?sessionId='+encodeURIComponent(sessionId));
+   if(data.status==='COMPLETED'){
+    cart={};saveGuest();updateCart();
+    notify('Stripe payment verified and order #'+data.orderId+' placed.');
+    await loadCatalog();return;
+   }
+   notify('Payment submitted. Order confirmation is awaiting the verified Stripe webhook. Check ORDERS shortly.');
+  }catch(e){notify('Payment status needs verification: '+e.message,true)}
+ }
+}
 async function checkout(){
  let checkoutStage='checking account';
  if(cartBusy)return;
@@ -324,6 +365,16 @@ async function checkout(){
    address=await request('/api/addresses',{method:'POST',body:JSON.stringify(data)});
   }
   const total=Object.entries(cart).reduce((n,[id,q])=>n+(productById(id)?itemPrice(productById(id)):0)*q,0);
+  const method=await choosePaymentMethod(total);
+  if(!method)return;
+  if(method==='STRIPE'){
+   checkoutStage='starting Stripe hosted checkout';
+   const session=await request('/api/checkout/stripe/session',{method:'POST',
+     body:JSON.stringify({addressId:address.addressId})});
+   if(!session.url||!/^https:\/\/checkout\.stripe\.com\//.test(session.url))
+    throw new Error('Stripe did not provide a valid hosted payment URL');
+   window.location.assign(session.url);return;
+  }
   const confirm=await showDialog('PLACE ORDER · '+money(total),[{name:'confirmation',label:'TYPE YES TO CONFIRM CASH ON DELIVERY',placeholder:'YES'}],'PLACE ORDER');
   if(!confirm||confirm.confirmation.toUpperCase()!=='YES')return;
   checkoutStage='placing cash-on-delivery order';
@@ -348,5 +399,5 @@ function bind(){
  $('clearFilters').onclick=()=>{searchText='';$('search').value='';$('cityFilter').value='';$('priceFilter').value='';setCategory('All')};
  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCart()});
 }
-bind();loadCatalog().then(loadSession);
+bind();loadCatalog().then(loadSession).then(resumeStripeCheckout);
 })();
