@@ -8,9 +8,9 @@ probe() {
   local title="$1" url="$2" status file
   file="$(mktemp)"
   status="$(curl --silent --show-error --max-time 12 -o "$file" -w '%{http_code}' "$url" 2>/dev/null || true)"
-  printf '%-32s HTTP %s\n' "$title" "${status:-000}"
+  printf '%-32s HTTP %s\n' "$title" "${status:-000}" >&2
   if [[ "$status" != 200 ]]; then
-    printf 'Response: '; head -c 280 "$file"; printf '\n'
+    { printf 'Response: '; head -c 280 "$file"; printf '\n'; } >&2
   fi
   rm -f "$file"
   printf '%s' "$status"
