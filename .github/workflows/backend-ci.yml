@@ -7,6 +7,28 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: nothing
+          POSTGRES_USER: nothing
+          POSTGRES_PASSWORD: ci-only-not-production
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nothing -d nothing"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: jdbc:postgresql://localhost:5432/nothing
+      DATABASE_USER: nothing
+      DATABASE_PASSWORD: ci-only-not-production
+      JWT_SECRET: Y2ktdGVzdC1rZXktb25seS1mb3Itbm90aGluZy1iYWNrZW5kLTEyMzQ1Njc4OTA=
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      SEED_COFFEE_CATALOG: 'false'
+      SPRING_KAFKA_LISTENER_AUTO_STARTUP: 'false'
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -14,6 +36,6 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Maven package and tests
+      - name: Maven compile and tests
         working-directory: backend
         run: mvn -B clean verify
