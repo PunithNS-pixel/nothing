@@ -35,6 +35,8 @@ public class CartServiceImpl implements CartService {
     CartItemRepository cartItemRepository;
     @Autowired
     ModelMapper modelMapper;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     @Override
     public CartDTO addProductToCart(Long productId, Integer quantity) {
@@ -266,10 +268,14 @@ public class CartServiceImpl implements CartService {
                 throw new APIException("Invalid cart item or duplicate product");
             }
         }
-        // Entity collection owns orphan removal. Clear it instead of issuing bulk DELETE
-        // that leaves Hibernate's persistence context with stale cart item entities.
-        cart.getCartItems().clear();
-        cartRepository.flush();
+        // Bulk-delete old rows, flush and clear the first-level cache, then reload the cart.
+        // Otherwise a stale Hibernate collection can reinsert duplicate cart items.
+        Long cartId=cart.getCartId();
+        cartItemRepository.deleteAllByCartId(cartId);
+        cartItemRepository.flush();
+        entityManager.clear();
+        cart=cartRepository.findById(cartId)
+          .orElseThrow(()->new ResourceNotFoundException("Cart","cartId",cartId));
         double total=0;
         for(CartItemDTO item:items){
             Product product=productRepo.findById(item.getProductId())
