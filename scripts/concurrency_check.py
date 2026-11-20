@@ -27,7 +27,7 @@ product_id=product['id']
 json_ok(call('PATCH',f'/admin/products/{product_id}/stock',headers=headers,json={'city':'Bengaluru','quantity':1}),{200})
 tokens=[]
 for i in range(2):
-    email=f'race-{uuid4().hex[:12]}-{i}@example.test';password='TestPasswordThatIsLong123!'
+    email=f'race-{uuid4().hex[:12]}-{i}@example.com';password='TestPasswordThatIsLong123!'
     json_ok(call('POST','/auth/register',json={'email':email,'password':password}),{201})
     token=json_ok(call('POST','/auth/login',json={'email':email,'password':password}),{200})['access_token']
     json_ok(call('POST','/cart/items',headers={'Authorization':'Bearer '+token},json={'product_id':product_id,'city':'Bengaluru','quantity':1}),{200})

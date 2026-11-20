@@ -18,7 +18,7 @@ def api():
         with Session(engine) as db: yield db
     app.dependency_overrides[get_db]=db_override
     with Session(engine) as db:
-        admin=User(email='test-admin@example.test',password_hash=hash_password('ReallyStrongTestPassword123!'),role='admin')
+        admin=User(email='test-admin@example.com',password_hash=hash_password('ReallyStrongTestPassword123!'),role='admin')
         product=Product(sku='ENERGY-ORIGINAL',name='Original',description='250ml drink',category='Energy Drinks',price='149.00')
         db.add_all([admin,product]);db.flush()
         db.add(Inventory(product_id=product.id,city='Bengaluru',quantity=1));pid=product.id
@@ -37,11 +37,11 @@ def test_register_admin_and_stock_safe_checkout(api):
     client,pid,engine=api
     users=[]
     for i in range(2):
-        email=f'checkout{i}@example.test';password='ReallyStrongTestPassword123!'
+        email=f'checkout{i}@example.com';password='ReallyStrongTestPassword123!'
         r=client.post('/auth/register',json={'email':email,'password':password});assert r.status_code==201,r.text
         users.append(login(client,email,password))
     assert client.get('/admin/users',headers=users[0]).status_code==403
-    admin=login(client,'test-admin@example.test','ReallyStrongTestPassword123!')
+    admin=login(client,'test-admin@example.com','ReallyStrongTestPassword123!')
     assert client.get('/admin/users',headers=admin).json()['total']==3
     assert client.get('/admin/summary',headers=admin).json()['customers']==2
     for h in users:
@@ -58,7 +58,7 @@ def test_register_admin_and_stock_safe_checkout(api):
         assert len(db.scalars(select(Order)).all())==1
         names=[r.event_type for r in db.scalars(select(Outbox)).all()]
         assert names.count('order.placed')==1 and names.count('inventory.changed')==1
-    assert client.get('/admin/orders',headers=admin).json()['items'][0]['customer_email']=='checkout0@example.test'
+    assert client.get('/admin/orders',headers=admin).json()['items'][0]['customer_email']=='checkout0@example.com'
 
 def test_protected_customer_data(api):
     client,pid,engine=api
