@@ -1,9 +1,24 @@
 variable "project" { type = string }
-variable "cloud_name" { type = string, default = "google-europe-west1" }
-variable "pg_plan" { type = string, default = "free-1" }
-variable "kafka_plan" { type = string, default = "free-1" }
-variable "opensearch_plan" { type = string, default = "free-1" }
-variable "prefix" { type = string, default = "retail-demo" }
+variable "cloud_name" {
+  type = string
+  default = "google-europe-west1"
+}
+variable "pg_plan" {
+  type = string
+  default = "free-1"
+}
+variable "kafka_plan" {
+  type = string
+  default = "free-1"
+}
+variable "opensearch_plan" {
+  type = string
+  default = "free-1"
+}
+variable "prefix" {
+  type = string
+  default = "nothing-energy-demo"
+}
 
 resource "aiven_pg" "db" {
   project = var.project

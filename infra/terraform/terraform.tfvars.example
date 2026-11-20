@@ -1,4 +1,4 @@
 project = "your-aiven-project"
 cloud_name = "google-europe-west1"
-prefix = "retail-demo"
+prefix = "nothing-energy-demo"
 # Check your Aiven account and region for actual available plan identifiers.
