@@ -290,7 +290,7 @@ async function showOrders(){
    const p=document.createElement('p');p.textContent=(o.orderDate||'')+' · '+(o.orderStatus||'Placed');row.append(h,p);root.append(row);
   }
   const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>$('modal').close();root.append(close);$('modal').showModal();
- }catch(e){notify('Could not load orders: '+e.message,true)}
+ }catch(e){notify('Order history is temporarily unavailable: '+e.message,true)}
 }
 async function choosePaymentMethod(total){
  return new Promise(resolve=>{
@@ -382,6 +382,8 @@ async function checkout(){
   cart={};saveGuest();updateCart();closeCart();
   await loadCatalog();
   notify('Order #'+order.orderId+' placed successfully! Payment on delivery.');
+  // The order already exists. A failed history refresh must never make the
+  // shopper think checkout itself failed or encourage a duplicate purchase.
   await showOrders();
  }catch(e){notify('Checkout failed while '+checkoutStage+': '+e.message,true);console.error('Checkout stage:',checkoutStage,'Error:',e)}
 }

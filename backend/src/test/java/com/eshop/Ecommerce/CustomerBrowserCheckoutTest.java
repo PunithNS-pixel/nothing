@@ -78,7 +78,18 @@ class CustomerBrowserCheckoutTest {
    .content(json.writeValueAsString(Map.of("addressId",addressId,
      "pgName","COD","pgStatus","PENDING","pgResponseMessage","Pay on delivery"))))
    .andExpect(status().isCreated()).andReturn();
-  assertTrue(json.readTree(order.getResponse().getContentAsString()).path("orderId").asLong()>0);
+  long orderId=json.readTree(order.getResponse().getContentAsString()).path("orderId").asLong();
+  assertTrue(orderId>0);
   assertEquals(10,products.findById(product.getProductId()).orElseThrow().getQuantity());
+
+  // Regression: the success path must NOT be replaced with "Full authentication
+  // is required" when the frontend immediately loads the order list.
+  mvc.perform(get("/api/customer/orders").cookie(jwt))
+   .andExpect(status().isOk())
+   .andExpect(jsonPath("$[0].orderId").value(orderId))
+   .andExpect(jsonPath("$[0].totalAmount").value(500.0));
+
+  // Never expose order history to an anonymous user.
+  mvc.perform(get("/api/customer/orders")).andExpect(status().isUnauthorized());
  }
 }

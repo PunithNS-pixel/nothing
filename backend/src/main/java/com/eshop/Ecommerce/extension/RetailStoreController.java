@@ -33,7 +33,19 @@ public class RetailStoreController {
  }
  @GetMapping("/api/customer/orders")
  public List<OrderDTO> myOrders(){
+  // Map only scalar fields while the repository query is complete.
+  // ModelMapper previously traversed lazy orderItems after the Hibernate
+  // session closed and could surface an unhelpful 401 from /error.
   return orders.findByEmailIgnoreCaseOrderByOrderDateDesc(auth.loggedInEmail()).stream()
-   .map(o->mapper.map(o,OrderDTO.class)).toList();
+   .map(o->{
+     OrderDTO dto=new OrderDTO();
+     dto.setOrderId(o.getOrderId());
+     dto.setEmail(o.getEmail());
+     dto.setOrderDate(o.getOrderDate());
+     dto.setTotalAmount(o.getTotalAmount());
+     dto.setOrderStatus(o.getOrderStatus());
+     dto.setOrderItems(java.util.List.of());
+     return dto;
+   }).toList();
  }
 }
