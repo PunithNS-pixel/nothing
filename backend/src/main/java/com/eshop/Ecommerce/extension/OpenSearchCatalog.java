@@ -1,55 +1,182 @@
 package com.eshop.Ecommerce.extension;
+
+import com.eshop.Ecommerce.Model.Product;
 import com.eshop.Ecommerce.Repositories.ProductRepo;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import java.net.*;import java.net.http.*;import java.nio.charset.StandardCharsets;import java.util.*;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * OpenSearch is the authoritative search backend; PostgreSQL remains the
+ * authoritative inventory database. v2 uses character n-grams to find "buds"
+ * inside "earbuds" without sacrificing regular typo-tolerant full-word search.
+ */
 @Service
 public class OpenSearchCatalog {
- private final ProductRepo products;private final ObjectMapper mapper;private final HttpClient client=HttpClient.newHttpClient();
+ private static final Logger log=LoggerFactory.getLogger(OpenSearchCatalog.class);
+ static final String INDEX="/nothing-products-v2";
+ private final ProductRepo products;
+ private final ObjectMapper mapper;
+ private final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
  private final String url,user,password;
- public OpenSearchCatalog(ProductRepo products,ObjectMapper mapper,@Value("${nothing.search.url}")String url,@Value("${nothing.search.username:}")String user,@Value("${nothing.search.password:}")String password){
-  this.products=products;this.mapper=mapper;this.url=url.replaceAll("/$","");this.user=user;this.password=password;
+ private final AtomicBoolean bootstrapped=new AtomicBoolean(false);
+ private final Object bootstrapLock=new Object();
+
+ public OpenSearchCatalog(ProductRepo products,ObjectMapper mapper,
+   @Value("${nothing.search.url}")String url,
+   @Value("${nothing.search.username:}")String user,
+   @Value("${nothing.search.password:}")String password){
+  this.products=products;this.mapper=mapper;
+  this.url=url.replaceAll("/$","");this.user=user;this.password=password;
  }
  private JsonNode call(String method,String path,Object payload){
   try{
-   var b=HttpRequest.newBuilder(URI.create(url+path)).header("Content-Type","application/json").timeout(java.time.Duration.ofSeconds(10));
-   if(!user.isBlank())b.header("Authorization","Basic "+Base64.getEncoder().encodeToString((user+":"+password).getBytes(StandardCharsets.UTF_8)));
-   b.method(method,payload==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload)));
-   var response=client.send(b.build(),HttpResponse.BodyHandlers.ofString());
-   if(response.statusCode()>=300)throw new IllegalStateException("OpenSearch HTTP "+response.statusCode()+": "+response.body());
+   var builder=HttpRequest.newBuilder(URI.create(url+path))
+      .timeout(Duration.ofSeconds(25));
+   if(payload!=null)builder.header("Content-Type","application/json");
+   if(!user.isBlank())builder.header("Authorization","Basic "+
+     Base64.getEncoder().encodeToString((user+":"+password).getBytes(StandardCharsets.UTF_8)));
+   builder.method(method,payload==null?HttpRequest.BodyPublishers.noBody():
+      HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload)));
+   var response=client.send(builder.build(),HttpResponse.BodyHandlers.ofString());
+   if(response.statusCode()>=300){
+     throw new SearchHttpException(response.statusCode(),"OpenSearch HTTP "+response.statusCode()+": "+response.body());
+   }
    return response.body().isBlank()?mapper.createObjectNode():mapper.readTree(response.body());
-  }catch(IllegalStateException e){throw e;}catch(Exception e){throw new IllegalStateException("OpenSearch unavailable",e);}
+  }catch(SearchHttpException e){throw e;}
+   catch(Exception e){throw new IllegalStateException("OpenSearch unavailable",e);}
+ }
+ private static final class SearchHttpException extends IllegalStateException{
+  final int status;
+  SearchHttpException(int status,String message){super(message);this.status=status;}
+ }
+
+ static Map<String,Object> indexDefinition(){
+  Map<String,Object> tokenizer=Map.of("type","ngram","min_gram",3,"max_gram",25,
+     "token_chars",List.of("letter","digit"));
+  Map<String,Object> analyzer=Map.of("type","custom","tokenizer","product_ngram_tokenizer",
+     "filter",List.of("lowercase"));
+  Map<String,Object> settings=Map.of("index",Map.of("max_ngram_diff",22),
+     "analysis",Map.of("tokenizer",Map.of("product_ngram_tokenizer",tokenizer),
+                        "analyzer",Map.of("product_substring",analyzer)));
+  Map<String,Object> fields=new LinkedHashMap<>();
+  fields.put("productId",Map.of("type","long"));
+  fields.put("productName",Map.of("type","text"));
+  fields.put("description",Map.of("type","text"));
+  fields.put("searchText",Map.of("type","text","analyzer","product_substring","search_analyzer","standard"));
+  fields.put("category",Map.of("type","keyword"));
+  fields.put("city",Map.of("type","keyword"));
+  fields.put("price",Map.of("type","double"));
+  fields.put("quantity",Map.of("type","integer"));
+  fields.put("image",Map.of("type","keyword","ignore_above",2048));
+  return Map.of("settings",settings,"mappings",Map.of("properties",fields));
  }
  public void ensureIndex(){
-  try{call("HEAD","/nothing-products",null);return;}
-  catch(IllegalStateException e){if(!e.getMessage().contains("HTTP 404"))throw e;}
-  try{call("PUT","/nothing-products",Map.of("mappings",Map.of("properties",Map.of(
-    "productId",Map.of("type","long"),"productName",Map.of("type","text"),
-    "description",Map.of("type","text"),"category",Map.of("type","keyword"),
-    "city",Map.of("type","keyword"),"price",Map.of("type","double"),"quantity",Map.of("type","integer")))));}
-  catch(IllegalStateException e){if(!e.getMessage().contains("resource_already_exists_exception"))throw e;}
+  try{call("HEAD",INDEX,null);return;}
+  catch(SearchHttpException e){if(e.status!=404)throw e;}
+  try{call("PUT",INDEX,indexDefinition());}
+  catch(SearchHttpException e){
+   if(e.status!=400||!e.getMessage().contains("resource_already_exists_exception"))throw e;
+  }
  }
- public void index(long id){
+
+ private void writeDocument(Product product){
+  Map<String,Object> doc=new LinkedHashMap<>();
+  doc.put("productId",product.getProductId());
+  doc.put("productName",product.getProductName());
+  doc.put("description",product.getDescription());
+  doc.put("searchText",(product.getProductName()==null?"":product.getProductName())+" "+
+       (product.getDescription()==null?"":product.getDescription()));
+  doc.put("category",product.getCategory()==null?"":product.getCategory().getCategoryName());
+  doc.put("city",product.getCity()==null?"":product.getCity());
+  doc.put("price",product.getSpecialPrice());
+  doc.put("quantity",product.getQuantity());
+  doc.put("image",product.getImage());
+  call("PUT",INDEX+"/_doc/"+product.getProductId(),doc);
+ }
+
+ public void index(long productId){
   ensureIndex();
-  products.findById(id).ifPresentOrElse(product->{
-   Map<String,Object> doc=new LinkedHashMap<>();
-   doc.put("productId",product.getProductId());doc.put("productName",product.getProductName());
-   doc.put("description",product.getDescription());doc.put("category",product.getCategory()==null?"":product.getCategory().getCategoryName());
-   doc.put("city",product.getCity()==null?"":product.getCity());doc.put("price",product.getSpecialPrice());doc.put("quantity",product.getQuantity());doc.put("image",product.getImage());
-   call("PUT","/nothing-products/_doc/"+id,doc);
-  },()->delete(id));
+  products.findById(productId).ifPresentOrElse(this::writeDocument,()->delete(productId));
  }
- public void delete(long id){try{call("DELETE","/nothing-products/_doc/"+id,null);}catch(IllegalStateException e){if(!e.getMessage().contains("HTTP 404"))throw e;}}
- public JsonNode search(String q,String category,Double min,Double max,String city,int page,int size){
-  if(page<0||size<1||size>100)throw new IllegalArgumentException("Invalid pagination");
-  ensureIndex();List<Object> filters=new ArrayList<>();
-  if(category!=null&&!category.isBlank())filters.add(Map.of("term",Map.of("category",category)));
-  if(city!=null&&!city.isBlank())filters.add(Map.of("term",Map.of("city",city)));
-  Map<String,Object> range=new HashMap<>();if(min!=null)range.put("gte",min);if(max!=null)range.put("lte",max);
+ public void delete(long productId){
+  try{call("DELETE",INDEX+"/_doc/"+productId,null);}
+  catch(SearchHttpException e){if(e.status!=404)throw e;}
+ }
+
+ /**
+  * New deployments, existing local Docker volumes and existing Aiven clusters
+  * all begin with a different index: populate it from PostgreSQL on the first
+  * search. Kafka keeps changes in sync afterwards.
+  */
+ private void initializeSearch(){
+  if(bootstrapped.get())return;
+  synchronized(bootstrapLock){
+   if(bootstrapped.get())return;
+   long count=reindex();
+   bootstrapped.set(true);
+   log.info("OpenSearch {} populated with {} PostgreSQL products",INDEX,count);
+  }
+ }
+
+ static Map<String,Object> searchRequest(String q,String category,Double min,Double max,
+                                         String city,int page,int size){
+  if(page<0||size<1||size>100||(long)page*size>10000)
+   throw new IllegalArgumentException("Invalid search pagination");
+  if(min!=null&&max!=null&&min>max)
+   throw new IllegalArgumentException("Minimum price exceeds maximum price");
+
+  List<Object> filters=new ArrayList<>();
+  if(category!=null&&!category.isBlank())filters.add(Map.of("term",Map.of("category",category.trim())));
+  if(city!=null&&!city.isBlank())filters.add(Map.of("term",Map.of("city",city.trim())));
+  Map<String,Object> range=new LinkedHashMap<>();
+  if(min!=null)range.put("gte",min);
+  if(max!=null)range.put("lte",max);
   if(!range.isEmpty())filters.add(Map.of("range",Map.of("price",range)));
-  Object match=q==null||q.isBlank()?Map.of("match_all",Map.of()):Map.of("multi_match",Map.of("query",q,"fields",List.of("productName^3","description"),"fuzziness","AUTO"));
-  return call("POST","/nothing-products/_search",Map.of("from",page*size,"size",size,"query",Map.of("bool",Map.of("must",List.of(match),"filter",filters))));
+
+  String query=q==null?"":q.trim();
+  Object must;
+  if(query.isBlank())must=Map.of("match_all",Map.of());
+  else{
+   // Exact/full-word, typo-tolerant, prefix and anywhere-in-word matches.
+   // "buds" -> "earbuds"; "bluetoth" -> "bluetooth".
+   List<Object> should=List.of(
+      Map.of("multi_match",Map.of("query",query,
+          "fields",List.of("productName^7","description^2"),
+          "fuzziness","AUTO","type","best_fields")),
+      Map.of("match",Map.of("searchText",Map.of("query",query,
+          "operator","and","boost",3))),
+      Map.of("match_phrase_prefix",Map.of("productName",Map.of("query",query,"boost",4)))
+   );
+   must=Map.of("bool",Map.of("should",should,"minimum_should_match",1));
+  }
+  return Map.of("from",page*size,"size",size,"track_total_hits",true,
+     "query",Map.of("bool",Map.of("must",List.of(must),"filter",filters)));
  }
- public long reindex(){ensureIndex();long count=0;for(var product:products.findAll()){index(product.getProductId());count++;}return count;}
+
+ public JsonNode search(String q,String category,Double min,Double max,String city,int page,int size){
+  var body=searchRequest(q,category,min,max,city,page,size);
+  initializeSearch();
+  return call("POST",INDEX+"/_search",body);
+ }
+
+ public long reindex(){
+  ensureIndex();
+  long count=0;
+  for(Product p:products.findAll()){writeDocument(p);count++;}
+  call("POST",INDEX+"/_refresh",null);
+  return count;
+ }
 }

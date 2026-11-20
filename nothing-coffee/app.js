@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(n)||0);
 const API=(localStorage.getItem('nothing-api-url')||'http://localhost:8090').replace(/\/$/,'');
-let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0;
+let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0,searchRequestSeq=0,searchDebounce;
 const productById=id=>catalog.find(p=>String(p.productId)===String(id));
 const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -64,6 +64,7 @@ function drawProducts(){
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add));
 }
 async function applyFilters(){
+ const sequence=++searchRequestSeq;
  let products=catalog.slice();
  const city=$('cityFilter').value,range=$('priceFilter').value,sort=$('sortFilter').value;
  const [min,max]=range?range.split('-').map(Number):[null,null];
@@ -72,13 +73,20 @@ async function applyFilters(){
   if(category!=='All')params.set('category',category);
   if(city)params.set('city',city);
   if(range){params.set('minPrice',String(min));params.set('maxPrice',String(max))}
+  $('sourceStatus').textContent='● SEARCHING OPENSEARCH…';
   try{
    const data=await request('/api/search/products?'+params);
+   if(sequence!==searchRequestSeq)return;
    const ids=new Set((data.hits?.hits||[]).map(hit=>String(hit._source?.productId)));
    products=catalog.filter(p=>ids.has(String(p.productId)));
    $('sourceStatus').textContent='● OPENSEARCH RESULTS';
-  }catch(e){notify('Search is temporarily unavailable: '+e.message,true);products=[];$('sourceStatus').textContent='● SEARCH UNAVAILABLE'}
+  }catch(e){
+   if(sequence!==searchRequestSeq)return;
+   notify('Search is temporarily unavailable: '+e.message,true);
+   products=[];$('sourceStatus').textContent='● SEARCH UNAVAILABLE';
+  }
  }else $('sourceStatus').textContent='● LIVE POSTGRESQL INVENTORY';
+ if(sequence!==searchRequestSeq)return;
  if(sort==='price-asc')products.sort((a,b)=>a.price-b.price);
  if(sort==='price-desc')products.sort((a,b)=>b.price-a.price);
  if(sort==='name')products.sort((a,b)=>a.name.localeCompare(b.name));
@@ -306,7 +314,8 @@ function bind(){
  $('accountBtn').onclick=accountAction;$('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
  $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
- $('search').addEventListener('keydown',e=>{if(e.key==='Enter')$('searchGo').click()});
+ $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchDebounce);$('searchGo').click()}});
+ $('search').addEventListener('input',()=>{clearTimeout(searchDebounce);searchDebounce=setTimeout(()=>{searchText=$('search').value.trim();applyFilters()},350)});
  $('search').addEventListener('search',()=>{searchText=$('search').value.trim();applyFilters()});
  ['cityFilter','priceFilter','sortFilter'].forEach(id=>$(id).onchange=applyFilters);
  document.querySelectorAll('[data-category-nav]').forEach(el=>el.onclick=()=>setCategory(el.dataset.categoryNav));

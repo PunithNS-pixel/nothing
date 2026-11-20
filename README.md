@@ -96,3 +96,26 @@ The same account system supports regular shoppers and business buyers. A busines
 ## Product photography
 
 The example product catalog uses externally hosted **Unsplash-licensed, illustrative photographs** (not exact branded product listings). Existing PostgreSQL records get a photo URL only if they do not already have one. Photos remain subject to third-party availability and should eventually be curated, licensed, optimized, stored in your own media/CDN pipeline and mapped to exact inventory SKUs. Source gallery and photographer details are maintained in `nothing-coffee/PHOTO_CREDITS.md`. Product photos are not stored as binary data in PostgreSQL, only their URLs.
+
+## OpenSearch v2: infix + fuzzy search (2026)
+
+Search is backed by **OpenSearch** rather than matching against the frontend array. The `nothing-products-v2` index combines:
+- Character n-gram substring indexing (`min_gram=3`), so **buds** matches **Bluetooth Wireless Earbuds**, including words ending in `buds`.
+- Conventional typo-tolerant full-text matching (`fuzziness=AUTO`), so **bluetoth** can match **Bluetooth**.
+- Prefix matching to help product-name completion.
+- Category, city, and numeric price filters enforced inside OpenSearch.
+- A one-time automatic full reindex from PostgreSQL when this app instance first receives a search, so upgrades from an existing Docker volume or Aiven installation automatically populate the new index. Subsequent `PRODUCT_CHANGED` and `INVENTORY_CHANGED` Kafka messages keep the index up to date.
+- The frontend debounces live typing and ignores stale responses when searches are entered quickly.
+
+PowerShell verification after `docker compose ... up --build -d`:
+
+```powershell
+$b=Invoke-RestMethod 'http://localhost:8090/api/search/products?q=buds'
+$b.hits.hits | ForEach-Object { $_._source.productName }
+$f=Invoke-RestMethod 'http://localhost:8090/api/search/products?q=bluetoth&category=Electronics'
+$f.hits.hits | ForEach-Object { $_._source.productName }
+```
+
+Expected example: `Bluetooth Wireless Earbuds`. The query will not invent a product such as Silkbuds unless that product actually exists in PostgreSQL and has been indexed.
+
+To explicitly rebuild the search index, use the authenticated admin-only endpoint `POST /api/admin/search/reindex`. The v1 index remains untouched; v2 is a new index to support the new analysis settings. Production-scale catalogs should use versioned aliases and background reindexing rather than a synchronous first-search bootstrap.
