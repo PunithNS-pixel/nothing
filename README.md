@@ -78,3 +78,21 @@ Prometheus at http://localhost:9090 scrapes `app:8081/actuator/prometheus`. Graf
 This is **a hackathon demo**, not a production-certified store. Features still needed for public production: verified online-payment webhooks, durable email/SMS notification provider, database migrations strategy and backups, CSRF protection for cookie auth, rate limiting, checkout idempotency and cancellation flows, inventory per-city warehouse (current city is a product-level attribute), distributed tracing, private network rules, horizontal-scale performance validation, and live Aiven end-to-end tests. Terraform examples are provided in `backend/infrastructure/terraform`, but no infrastructure is automatically provisioned without your Aiven project token/plan settings.
 
 The GitHub CI workflow compiles, runs backend tests against an isolated PostgreSQL service, and validates frontend JavaScript syntax.
+
+## Retailer accounts and GSTIN approval
+
+The same account system supports regular shoppers and business buyers. A business buyer signs up or signs in as a customer, then uses **RETAILERS → APPLY AS A RETAILER** to submit registered business name and a compulsory 15-character GSTIN. A format check alone does NOT verify a real GST registration. No discount is granted until a store administrator checks the registration on the [official GST Portal > Search Taxpayer](https://www.gst.gov.in/) and marks the application APPROVED.
+
+- `POST /api/retailer/apply` (authenticated): request approval, initial state `PENDING`.
+- `GET /api/retailer/me` (authenticated): view own status and authorized discount percent.
+- `GET /api/admin/retailers` (ROLE_ADMIN): list pending applications.
+- `PUT /api/admin/retailers/{id}/review` (ROLE_ADMIN): approve or reject.
+- Approved businesses receive `RETAILER_DISCOUNT_PERCENT` (default 10%) on supported items. The discount is enforced in PostgreSQL cart pricing and carries through order items and COD totals; pending and rejected accounts pay normal prices.
+- In `backend/.env`, optionally set `ADMIN_USERNAME` (a **new** username not already registered) and a unique `ADMIN_PASSWORD` at least 12 characters. Restart the backend after setting them. The admin account is bootstrapped only on first startup and never resets an existing password. Once logged in, use the **APPROVALS** menu in the storefront.
+- Retailers are wholesale *buyers*; they do not automatically gain the `ROLE_SELLER` permission to list inventory.
+
+**Security note:** Approval is a manual workflow; official GSTN automated API lookup is not integrated. Do not approve applications based only on regex format. Price claims in the browser are not trusted; the server recalculates the discount, and the store must be deployed behind HTTPS with CSRF protection before public use.
+
+## Product photography
+
+The example product catalog uses externally hosted **Unsplash-licensed, illustrative photographs** (not exact branded product listings). Existing PostgreSQL records get a photo URL only if they do not already have one. Photos remain subject to third-party availability and should eventually be curated, licensed, optimized, stored in your own media/CDN pipeline and mapped to exact inventory SKUs. Source gallery and photographer details are maintained in `nothing-coffee/PHOTO_CREDITS.md`. Product photos are not stored as binary data in PostgreSQL, only their URLs.

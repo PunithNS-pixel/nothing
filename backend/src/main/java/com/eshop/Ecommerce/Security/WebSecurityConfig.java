@@ -101,6 +101,11 @@ public class WebSecurityConfig {
     public PasswordEncoder passwordEncoderBean() {
         return new BCryptPasswordEncoder();
     }
+    @org.springframework.beans.factory.annotation.Value("${ADMIN_USERNAME:}")
+    private String bootstrapAdminUsername;
+    @org.springframework.beans.factory.annotation.Value("${ADMIN_PASSWORD:}")
+    private String bootstrapAdminPassword;
+
     @Bean
     public CommandLineRunner initData(RoleRepository roleRepository, UserRepository userRepository, PasswordEncoder passwordEncoder) {
         return args -> {
@@ -127,7 +132,20 @@ public class WebSecurityConfig {
             Set<Role> sellerRoles = Set.of(sellerRole);
             Set<Role> adminRoles = Set.of(userRole, sellerRole, adminRole);
 
-
+            // Bootstrap an administrator only when explicitly configured.
+            // NEVER auto-promote a pre-existing user account by username.
+            if(!bootstrapAdminUsername.isBlank() && !bootstrapAdminPassword.isBlank()){
+                if(bootstrapAdminUsername.length()>20 || bootstrapAdminPassword.length()<12){
+                    throw new IllegalStateException("ADMIN_USERNAME must be <=20 characters and ADMIN_PASSWORD >=12 characters");
+                }
+                if(userRepository.findByUserName(bootstrapAdminUsername).isEmpty()){
+                    User admin=new User(bootstrapAdminUsername,
+                        bootstrapAdminUsername+"@nothing-market.invalid",
+                        passwordEncoder.encode(bootstrapAdminPassword));
+                    admin.setRoles(adminRoles);
+                    userRepository.save(admin);
+                }
+            }
         };
     }
 }

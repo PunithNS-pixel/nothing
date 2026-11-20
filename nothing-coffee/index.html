@@ -20,12 +20,14 @@
     </div>
     <div class="header-right">
       <span class="india-tag">🇮🇳 INDIA</span>
+      <button id="retailerBtn" class="nav-button retailer-nav">▤ <span>RETAILERS</span></button>
+      <button id="adminRetailersBtn" class="nav-button" hidden>APPROVALS</button>
       <button id="accountBtn" class="nav-button">♙ <span id="accountLabel">SIGN IN</span></button>
       <button id="ordersBtn" class="nav-button">◎ <span>ORDERS</span></button>
       <button id="cartBtn" class="cart-launch">BAG <span id="cartCount">0</span></button>
     </div>
   </header>
-  <nav class="category-nav"><a href="#catalog">ALL PRODUCTS</a><button data-category-nav="Electronics">ELECTRONICS</button><button data-category-nav="Fashion">FASHION</button><button data-category-nav="Home & Living">HOME & LIVING</button><button data-category-nav="Grocery">GROCERY</button><button data-category-nav="Beauty">BEAUTY</button><a href="#about">OUR PROMISE</a></nav>
+  <nav class="category-nav"><a href="#catalog">ALL PRODUCTS</a><button data-category-nav="Electronics">ELECTRONICS</button><button data-category-nav="Fashion">FASHION</button><button data-category-nav="Home & Living">HOME & LIVING</button><button data-category-nav="Grocery">GROCERY</button><button data-category-nav="Beauty">BEAUTY</button><a href="#retailers">FOR RETAILERS</a><a href="#about">OUR PROMISE</a></nav>
   <main>
     <section class="hero" id="home">
       <div class="hero-copy">
@@ -35,7 +37,7 @@
         <div class="hero-buttons"><a href="#catalog" class="primary-link">EXPLORE THE STORE <span>↗</span></a><span class="subtle-note">REAL STOCK. REAL FAST.</span></div>
         <div class="hero-metrics"><div><strong>5+</strong><span>CATEGORIES</span></div><div><strong>LIVE</strong><span>INVENTORY</span></div><div><strong>INDIA</strong><span>WIDE</span></div></div>
       </div>
-      <div class="hero-art" aria-hidden="true"><div class="hero-rings"><div class="circle c1"></div><div class="circle c2"></div></div><div class="hero-object object-1">🎧</div><div class="hero-object object-2">👟</div><div class="hero-object object-3">💡</div><div class="hero-number">01 / 05</div><div class="hero-badge">CURATED FOR<br>YOUR EVERYDAY ✦</div></div>
+      <div class="hero-art" aria-hidden="true"><div class="hero-rings"><div class="circle c1"></div><div class="circle c2"></div></div><img class="hero-object object-1" src="https://images.unsplash.com/photo-1754142654807-1dfcdc3f7f22?auto=format&fit=crop&w=600&q=80" alt=""><img class="hero-object object-2" src="https://images.unsplash.com/photo-1719523677291-a395426c1a87?auto=format&fit=crop&w=600&q=80" alt=""><img class="hero-object object-3" src="https://images.unsplash.com/photo-1731762524352-b5663f83a830?auto=format&fit=crop&w=500&q=80" alt=""><div class="hero-number">01 / 05</div><div class="hero-badge">CURATED FOR<br>YOUR EVERYDAY ✦</div></div>
     </section>
     <section class="service-strip" id="about"><div>✳ <strong>REAL-TIME STOCK</strong><small>Powered by PostgreSQL</small></div><div>⌕ <strong>SMART SEARCH</strong><small>Find what you mean</small></div><div>↗ <strong>DELIVERY ACROSS INDIA</strong><small>Shop by your city</small></div><div>✧ <strong>SECURE CHECKOUT</strong><small>Cash on delivery demo</small></div></section>
     <section class="catalog-section" id="catalog">
@@ -52,9 +54,20 @@
       <div class="product-grid" id="productGrid"><div class="loading-card">Connecting to the store…</div></div>
       <div id="emptyState" class="empty-state" hidden><strong>NOTHING FOUND.</strong><p>Try another keyword or change your filters.</p><button id="clearFilters" class="outline-button">CLEAR FILTERS ↗</button></div>
     </section>
+    <section class="retailer-section" id="retailers">
+      <div class="retailer-section-copy">
+       <span class="eyebrow">NOTHING MARKET FOR BUSINESS</span>
+       <h2>BUY BETTER.<br><em>GROW BIGGER.</em></h2>
+       <p>Own a retail business? Apply for wholesale-style pricing with your registered GSTIN. Every retailer application is reviewed before discounts are enabled.</p>
+       <div class="retailer-steps"><span>01 · CREATE ACCOUNT</span><span>02 · SUBMIT GSTIN</span><span>03 · ADMIN VERIFICATION</span><span>04 · UNLOCK RETAILER PRICES</span></div>
+       <button id="retailerCta" class="primary-link" type="button">APPLY AS A RETAILER ↗</button>
+       <small>GSTIN is mandatory. Submitting a GSTIN does not guarantee approval.</small>
+      </div>
+      <div class="retailer-section-visual"><div class="retailer-ticket"><div class="ticket-top">NOTHING <span>BUSINESS</span></div><div class="ticket-percent">10<span>% OFF</span></div><div class="ticket-caption">ON APPROVED RETAILER ACCOUNTS</div><div class="ticket-fine">ADMIN-VERIFIED GST REGISTRATION REQUIRED</div></div></div>
+    </section>
     <section class="closing-banner"><div class="eyebrow">BUILT FOR THE WAY YOU SHOP</div><h2>LESS SEARCHING.<br><em>MORE LIVING.</em></h2><a href="#catalog" class="primary-link">BACK TO THE GOOD STUFF ↗</a></section>
   </main>
-  <footer class="footer"><a class="wordmark" href="#"><span class="mark">N.</span>NOTHING<span class="market">MARKET</span></a><span>GOOD STUFF. LESS FUSS. © <span id="year"></span></span><span>MADE FOR INDIA ↗</span></footer>
+  <footer class="footer"><a class="wordmark" href="#"><span class="mark">N.</span>NOTHING<span class="market">MARKET</span></a><span>GOOD STUFF. LESS FUSS. © <span id="year"></span></span><span>MADE FOR INDIA ↗ · <a href="https://unsplash.com/license" target="_blank" rel="noopener noreferrer">PRODUCT IMAGE CREDITS: UNSPLASH</a></span></footer>
   <div id="overlay" class="overlay" hidden></div>
   <aside id="cartDrawer" class="cart-drawer" role="dialog" aria-modal="true" aria-label="Your shopping bag" aria-hidden="true">
     <div class="drawer-top"><div class="eyebrow">YOUR NEXT GREAT FIND</div><button class="close-button" id="closeCart" aria-label="Close cart">✕</button><h2>YOUR BAG<span>.</span></h2><p id="cartSyncStatus">Cart ready</p></div>

@@ -3,8 +3,9 @@
 const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(n)||0);
 const API=(localStorage.getItem('nothing-api-url')||'http://localhost:8090').replace(/\/$/,'');
-let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false;
+let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0;
 const productById=id=>catalog.find(p=>String(p.productId)===String(id));
+const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icons={'Electronics':'🎧','Fashion':'👟','Home & Living':'💡','Grocery':'🛒','Beauty':'🧴','Coffee':'☕'};
 const tones={'Electronics':'#e8eefa','Fashion':'#ffede8','Home & Living':'#f2eddc','Grocery':'#ecf6db','Beauty':'#ffecf2','Coffee':'#f5e9d8'};
@@ -22,9 +23,9 @@ function updateCart(){
  const items=Object.entries(cart).filter(([id,q])=>Number(q)>0&&productById(id));
  const count=items.reduce((n,[id,q])=>n+Number(q),0);
  $('cartCount').textContent=count;
- $('cartTotal').textContent=money(items.reduce((n,[id,q])=>n+productById(id).price*q,0));
+ $('cartTotal').textContent=money(items.reduce((n,[id,q])=>n+itemPrice(productById(id))*q,0));
  $('cartItems').innerHTML=items.length?items.map(([id,q])=>{
-   const p=productById(id);return '<div class="cart-row"><div class="cart-icon">'+chooseIcon(p)+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(p.price*q)+'</div></div>';
+   const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img loading="lazy" src="'+escape(p.image)+'" alt="">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
  }).join(''):'<div class="empty-state"><strong>YOUR BAG IS EMPTY.</strong><p>Some good stuff is waiting for you.</p></div>';
  $('cartSyncStatus').textContent=user?'Saved to your PostgreSQL cart':'Guest bag saved on this device';
  $('checkoutBtn').disabled=!count||cartBusy;
@@ -48,7 +49,7 @@ async function changeQty(id,delta){
  updateCart();
  try{await persistCart()}catch{cart=before;updateCart()}
 }
-async function addItem(id){await changeQty(id,1);openCart()}
+async function addItem(id){await changeQty(id,1)}
 function openCart(){$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
 function closeCart(){$('overlay').hidden=true;$('cartDrawer').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true')}
 function drawProducts(){
@@ -58,7 +59,7 @@ function drawProducts(){
   const stock=Number(p.stock),icon=chooseIcon(p),safeId=Number(p.productId);
   let image='<span class="emoji" aria-hidden="true">'+icon+'</span>';
   if(p.image&&/^https:\/\//.test(p.image))image='<img loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(p.price)+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
  }).join('');
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add));
 }
@@ -121,10 +122,20 @@ async function loadServerCart(){
   updateCart();
  }catch(e){cart={};updateCart();notify('Could not restore your saved cart: '+e.message,true)}
 }
+async function loadRetailerStatus(){
+ retailerStatus='NOT_APPLIED';retailerDiscount=0;
+ if(!user)return;
+ try{
+  const data=await request('/api/retailer/me');
+  retailerStatus=data.status||'NOT_APPLIED';
+  retailerDiscount=data.status==='APPROVED'?Number(data.discountPercent||0):0;
+ }catch(e){notify('Retailer status unavailable: '+e.message,true)}
+}
 async function loadSession(){
  try{const name=await request('/api/auth/username');user=typeof name==='string'&&name.trim()?name.trim():null;}catch{user=null}
  $('accountLabel').textContent=user?user.toUpperCase():'SIGN IN';
- await loadServerCart();
+ await loadRetailerStatus();await applyFilters();await loadServerCart();
+ try{const data=await request('/api/auth/user');const roles=data.roles||[];$('adminRetailersBtn').hidden=!roles.includes('ROLE_ADMIN')}catch{$('adminRetailersBtn').hidden=true}
 }
 function showDialog(title,fields,button='CONTINUE'){
  return new Promise(resolve=>{
@@ -146,10 +157,25 @@ function showDialog(title,fields,button='CONTINUE'){
   dialog.showModal();Object.values(inputs)[0]?.focus();
  });
 }
+function selectAccountMode(){
+ return new Promise(resolve=>{
+  const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
+  const title=document.createElement('h2');title.textContent='YOUR NOTHING ACCOUNT';root.append(title);
+  const p=document.createElement('p');p.textContent='Choose how you want to continue.';root.append(p);
+  const actions=document.createElement('div');actions.className='account-choices';root.append(actions);
+  let finished=false;const end=value=>{if(finished)return;finished=true;dialog.close();resolve(value)};
+  for(const [value,label] of [['LOGIN','SIGN IN'],['SIGNUP','CREATE ACCOUNT']]){
+   const button=document.createElement('button');button.className='primary-choice';button.textContent=label;
+   button.onclick=()=>end(value);actions.append(button);
+  }
+  dialog.oncancel=e=>{e.preventDefault();end(null)};
+  dialog.showModal();
+ });
+}
 async function login(){
- const choice=await showDialog('WELCOME TO NOTHING MARKET',[{name:'mode',label:'TYPE LOGIN OR SIGNUP',placeholder:'LOGIN'}]);
+ const choice=await selectAccountMode();
  if(!choice)return false;
- const signup=choice.mode.toUpperCase()==='SIGNUP';
+ const signup=choice==='SIGNUP';
  const fields=[{name:'username',label:'USERNAME',autocomplete:'username',minLength:3}];
  if(signup)fields.push({name:'email',label:'EMAIL ADDRESS',type:'email',autocomplete:'email'});
  fields.push({name:'password',label:'PASSWORD',type:'password',autocomplete:signup?'new-password':'current-password',minLength:6});
@@ -159,7 +185,7 @@ async function login(){
   if(signup)await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
   await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
   user=data.username;$('accountLabel').textContent=user.toUpperCase();
-  await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
+  await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
 }
@@ -168,7 +194,64 @@ async function accountAction(){
  const choice=await showDialog('SIGNED IN AS '+user.toUpperCase(),[{name:'action',label:'TYPE LOGOUT TO SIGN OUT',placeholder:'LOGOUT'}],'CONTINUE');
  if(!choice||choice.action.toUpperCase()!=='LOGOUT')return;
  try{await request('/api/auth/signout',{method:'POST'});}catch{}
- user=null;cart={};$('accountLabel').textContent='SIGN IN';saveGuest();updateCart();notify('Signed out. Your account cart is kept in PostgreSQL.');
+ user=null;cart={};retailerStatus='NOT_APPLIED';retailerDiscount=0;$('accountLabel').textContent='SIGN IN';$('adminRetailersBtn').hidden=true;saveGuest();await applyFilters();updateCart();notify('Signed out. Your account cart is kept in PostgreSQL.');
+}
+async function retailerAction(){
+ if(!user && !await login())return;
+ try{
+  await loadRetailerStatus();
+  if(retailerStatus==='APPROVED'){
+   const result=await showDialog('RETAILER ACCOUNT APPROVED',[{name:'status',label:'APPROVED · '+retailerDiscount+'% DISCOUNT ON ALL STORE ITEMS',placeholder:'THANK YOU'}],'CLOSE');
+   return;
+  }
+  if(retailerStatus==='PENDING'){
+   await informationModal('VERIFICATION PENDING','Your GSTIN is submitted. A store administrator must check it against official GST records before activating retailer prices. No discount is active yet.');
+   return;
+  }
+  const data=await showDialog('APPLY FOR RETAILER PRICING',[
+   {name:'businessName',label:'REGISTERED BUSINESS NAME',placeholder:'Your GST registered business',minLength:3},
+   {name:'gstin',label:'GSTIN (REQUIRED — 15 CHARACTERS)',placeholder:'29ABCDE1234F1Z5',minLength:15}
+  ],'SUBMIT FOR REVIEW');
+  if(!data)return;
+  const result=await request('/api/retailer/apply',{method:'POST',body:JSON.stringify(data)});
+  retailerStatus=result.status;
+  await informationModal('APPLICATION SUBMITTED','Your request is now PENDING. An administrator must verify GST registration before retailer discounts begin.');
+ }catch(e){notify('Retailer application failed: '+e.message,true)}
+}
+function informationModal(title,message){
+ return new Promise(resolve=>{
+  const d=$('modal'),root=$('modalContent');root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent=title;
+  const p=document.createElement('p');p.textContent=message;
+  const done=document.createElement('button');done.className='outline-button';done.textContent='CLOSE';
+  done.onclick=()=>{d.close();resolve()};
+  d.oncancel=()=>resolve();root.append(heading,p,done);d.showModal();
+ });
+}
+async function reviewRetailers(){
+ try{
+  const items=await request('/api/admin/retailers');
+  const d=$('modal'),root=$('modalContent');root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent='RETAILER APPROVAL QUEUE';root.append(heading);
+  const help=document.createElement('p');help.textContent='Use gst.gov.in > Search Taxpayer to verify the GSTIN and legal name. Approve only after successful verification.';root.append(help);
+  if(!items.length){const empty=document.createElement('p');empty.textContent='No pending retailer applications.';root.append(empty)}
+  for(const item of items){
+   const block=document.createElement('section');block.className='review-card';
+   const name=document.createElement('strong');name.textContent=item.businessName+' · '+item.gstin;block.append(name);
+   const row=document.createElement('div');row.className='actions';
+   for(const decision of ['APPROVED','REJECTED']){
+    const btn=document.createElement('button');btn.type='button';btn.textContent=decision==='APPROVED'?'APPROVE':'REJECT';
+    btn.onclick=async()=>{
+     try{
+      await request('/api/admin/retailers/'+item.id+'/review',{method:'PUT',body:JSON.stringify({decision,note:'Reviewed by store administrator'})});
+      notify(item.businessName+' marked '+decision.toLowerCase());d.close();await reviewRetailers();
+     }catch(e){notify('Review failed: '+e.message,true)}
+    };row.append(btn)
+   }
+   block.append(row);root.append(block);
+  }
+  const exit=document.createElement('button');exit.className='outline-button';exit.textContent='CLOSE';exit.onclick=()=>d.close();root.append(exit);d.showModal();
+ }catch(e){notify('Approval queue unavailable: '+e.message,true)}
 }
 async function showOrders(){
  if(!user){if(!await login())return}
@@ -207,7 +290,7 @@ async function checkout(){
    if(!data)return;
    address=await request('/api/addresses',{method:'POST',body:JSON.stringify(data)});
   }
-  const total=Object.entries(cart).reduce((n,[id,q])=>n+(productById(id)?.price||0)*q,0);
+  const total=Object.entries(cart).reduce((n,[id,q])=>n+(productById(id)?itemPrice(productById(id)):0)*q,0);
   const confirm=await showDialog('PLACE ORDER · '+money(total),[{name:'confirmation',label:'TYPE YES TO CONFIRM CASH ON DELIVERY',placeholder:'YES'}],'PLACE ORDER');
   if(!confirm||confirm.confirmation.toUpperCase()!=='YES')return;
   const order=await request('/api/order/users/payments/COD',{method:'POST',body:JSON.stringify({addressId:address.addressId,pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Cash on delivery'})});
@@ -221,6 +304,7 @@ function bind(){
  $('year').textContent=new Date().getFullYear();
  $('cartBtn').onclick=openCart;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
  $('accountBtn').onclick=accountAction;$('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
+ $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
  $('search').addEventListener('keydown',e=>{if(e.key==='Enter')$('searchGo').click()});
  $('search').addEventListener('search',()=>{searchText=$('search').value.trim();applyFilters()});

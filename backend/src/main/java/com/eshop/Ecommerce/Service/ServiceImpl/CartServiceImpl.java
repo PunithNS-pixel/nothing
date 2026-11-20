@@ -35,6 +35,8 @@ public class CartServiceImpl implements CartService {
     CartItemRepository cartItemRepository;
     @Autowired
     ModelMapper modelMapper;
+    @Autowired
+    com.eshop.Ecommerce.Service.RetailerPricing retailerPricing;
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
 
@@ -66,13 +68,13 @@ public class CartServiceImpl implements CartService {
         newCartItem.setCart(cart);
         newCartItem.setQuantity(quantity);
         newCartItem.setDiscount(product.getDiscount());
-        newCartItem.setProductPrice(product.getSpecialPrice());
+        newCartItem.setProductPrice(retailerPricing.customerPrice(authUtil.loggedInUser(),product.getSpecialPrice()));
 
         cartItemRepository.save(newCartItem);
 
         product.setQuantity(product.getQuantity());
 
-        cart.setTotalPrice(cart.getTotalPrice() + (product.getSpecialPrice() * quantity));
+        cart.setTotalPrice(cart.getTotalPrice() + (retailerPricing.customerPrice(authUtil.loggedInUser(),product.getSpecialPrice()) * quantity));
 
         cartRepository.save(cart);
 
@@ -176,7 +178,7 @@ public class CartServiceImpl implements CartService {
         if (newQuantity == 0){
             deleteProductFromCart(cartId, productId);
         } else {
-            cartItem.setProductPrice(product.getSpecialPrice());
+            cartItem.setProductPrice(retailerPricing.customerPrice(authUtil.loggedInUser(),product.getSpecialPrice()));
             cartItem.setQuantity(cartItem.getQuantity() + quantity);
             cartItem.setDiscount(product.getDiscount());
             cart.setTotalPrice(cart.getTotalPrice() + (cartItem.getProductPrice() * quantity));
@@ -243,7 +245,7 @@ public class CartServiceImpl implements CartService {
         double cartPrice = cart.getTotalPrice()
                 - (cartItem.getProductPrice() * cartItem.getQuantity());
 
-        cartItem.setProductPrice(product.getSpecialPrice());
+        cartItem.setProductPrice(retailerPricing.customerPrice(authUtil.loggedInUser(),product.getSpecialPrice()));
 
         cart.setTotalPrice(cartPrice
                 + (cartItem.getProductPrice() * cartItem.getQuantity()));
@@ -287,7 +289,7 @@ public class CartServiceImpl implements CartService {
             CartItem ci=new CartItem();
             ci.setCart(cart);ci.setProduct(product);
             ci.setQuantity(item.getQuantity());ci.setDiscount(product.getDiscount());
-            ci.setProductPrice(product.getSpecialPrice());
+            ci.setProductPrice(retailerPricing.customerPrice(authUtil.loggedInUser(),product.getSpecialPrice()));
             cart.getCartItems().add(ci);
             total+=ci.getProductPrice()*ci.getQuantity();
         }
