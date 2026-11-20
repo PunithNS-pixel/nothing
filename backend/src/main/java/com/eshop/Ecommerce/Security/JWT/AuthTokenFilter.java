@@ -68,7 +68,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             return jwtFromCookie;
         }
 
-        String jwtFromHeader = jwtUtils.getJwtFromCookies(request);
+        String jwtFromHeader = jwtUtils.getJwtFromHeader(request);
         if (jwtFromHeader != null) {
             return jwtFromHeader;
         }

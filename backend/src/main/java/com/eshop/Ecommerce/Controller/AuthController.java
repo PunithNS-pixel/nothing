@@ -37,7 +37,8 @@ public class AuthController {
     }
     @GetMapping("/username")
     public String getCurrUserName(Authentication authentication) {
-        if(authentication!=null){
+        if(authentication!=null && authentication.isAuthenticated()
+           && !(authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)){
             return authentication.getName();
         }
         else{
@@ -46,6 +47,10 @@ public class AuthController {
     }
     @GetMapping("/user")
     public ResponseEntity<?> getUserDetails(Authentication authentication) {
+        if(authentication == null || !authentication.isAuthenticated()
+          || authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken){
+            return ResponseEntity.status(401).body(new MessageResponse("Authentication required"));
+        }
         return authService.getUserDetail(authentication);
     }
     @PostMapping("/signout")

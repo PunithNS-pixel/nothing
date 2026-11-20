@@ -139,11 +139,23 @@ async function loadRetailerStatus(){
   retailerDiscount=data.status==='APPROVED'?Number(data.discountPercent||0):0;
  }catch(e){notify('Retailer status unavailable: '+e.message,true)}
 }
+async function verifySession(){
+ try{
+  // A real authenticated response includes an account ID and username.
+  // /api/auth/username is public and must not be used as proof of login.
+  const session=await request('/api/auth/user');
+  if(!session||!session.id||!session.username||session.username==='anonymousUser'){
+   user=null;return null;
+  }
+  user=session.username;
+  return session;
+ }catch(e){user=null;return null}
+}
 async function loadSession(){
- try{const name=await request('/api/auth/username');user=typeof name==='string'&&name.trim()?name.trim():null;}catch{user=null}
+ const session=await verifySession();
  $('accountLabel').textContent=user?user.toUpperCase():'SIGN IN';
+ $('adminRetailersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  await loadRetailerStatus();await applyFilters();await loadServerCart();
- try{const data=await request('/api/auth/user');const roles=data.roles||[];$('adminRetailersBtn').hidden=!roles.includes('ROLE_ADMIN')}catch{$('adminRetailersBtn').hidden=true}
 }
 function showDialog(title,fields,button='CONTINUE'){
  return new Promise(resolve=>{
@@ -192,7 +204,10 @@ async function login(){
  try{
   if(signup)await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
   await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
-  user=data.username;$('accountLabel').textContent=user.toUpperCase();
+  const session=await verifySession();
+  if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
+  $('accountLabel').textContent=user.toUpperCase();
+  $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
@@ -280,7 +295,13 @@ async function showOrders(){
 async function checkout(){
  if(cartBusy)return;
  if(!Object.values(cart).some(n=>n>0)){notify('Add a product first.',true);return}
- if(!user){closeCart();if(!await login())return}
+ // Check the server, not a remembered username in frontend state.
+ const session=await verifySession();
+ if(!session){
+  user=null;$('accountLabel').textContent='SIGN IN';
+  closeCart();
+  if(!await login())return;
+ }
  try{
   await persistCart();
   let addresses=await request('/api/users/addresses');
