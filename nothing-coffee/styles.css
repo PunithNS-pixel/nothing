@@ -257,3 +257,77 @@ button[hidden],.nav-button[hidden]{display:none!important}
 .wish-actions button{border:1px solid #dce4da;background:#edf7df;border-radius:7px;padding:9px;font-weight:800;font-size:10px}
 .wish-actions button:last-child{background:#fff;color:#a23c3c}
 @media(max-width:520px){.wish-row{flex-wrap:wrap}.wish-actions{width:100%}}
+
+
+/* Detailed product view: image gallery, zoom and real-size inventory options */
+.product-visual .product-image-trigger{appearance:none;width:100%;height:100%;border:0;background:transparent;padding:0;display:grid;place-items:center;overflow:hidden;cursor:zoom-in}
+.product-image-trigger img{width:100%;height:100%;object-fit:contain;transition:transform .26s}
+.product-image-trigger:hover img{transform:scale(1.055)}
+.product-image-trigger .product-placeholder{width:100%;height:100%}
+.product-info h3 .product-title-trigger{border:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;line-height:inherit;text-align:left;padding:0}
+.product-title-trigger:hover{text-decoration:underline;text-underline-offset:3px}
+.deal-image .deal-image-trigger{border:0;padding:0;background:transparent;display:block;height:100%;width:100%;cursor:zoom-in}
+.deal-image-trigger img{width:100%;height:100%;object-fit:cover}
+.product-dialog{border:0;background:#fbfcfd;border-radius:20px;padding:0;width:min(1160px,calc(100vw - 26px));max-width:unset;max-height:min(95dvh,950px);box-shadow:0 34px 110px #0e1b3255;color:#19263b;overflow-y:auto}
+.product-dialog::backdrop{background:#071626bc;backdrop-filter:blur(4px)}
+.detail-topbar{display:flex;align-items:center;justify-content:space-between;padding:24px 32px 18px;background:#fff;border-bottom:1px solid #e6e9e6}
+.detail-topbar h2{font:800 clamp(23px,2.8vw,34px)/1.14 'Space Grotesk',sans-serif;letter-spacing:-.05em;margin:6px 0}
+.detail-close{background:#eef1f4;border:0;border-radius:100%;font-size:20px;width:42px;height:42px;flex-shrink:0}
+.detail-body{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,1fr);gap:28px;padding:24px 30px 34px}
+.detail-gallery{min-width:0}
+.detail-main-media{position:relative;background:#f0f2f3;border-radius:17px;overflow:hidden;height:clamp(320px,37vw,480px)}
+.detail-zoom{display:grid;place-items:center;border:0;padding:0;width:100%;height:100%;background:#f0f2f3;overflow:hidden;cursor:zoom-in}
+.detail-zoom img{height:100%;width:100%;object-fit:contain;transition:transform .25s}
+.detail-zoom img.detail-crop{object-fit:cover;transform:scale(1.15)}
+.detail-zoom.zoomed{cursor:zoom-out}
+.detail-zoom.zoomed img{transform:scale(2)}
+.detail-zoom .product-placeholder{height:100%;width:100%}
+.detail-zoom-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);border-radius:50px;background:#152135df;color:white;pointer-events:none;font-size:10px;font-weight:800;letter-spacing:.09em;padding:9px 14px;white-space:nowrap}
+.detail-thumbnails{display:flex;gap:10px;margin-top:13px;overflow-x:auto;padding:1px 2px 8px}
+.detail-thumb{flex:0 0 102px;border:2px solid transparent;border-radius:11px;background:#e9ebed;padding:5px;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.detail-thumb.selected{border-color:#6a8e20;background:#f7fce8}
+.detail-thumb img{height:82px;width:100%;object-fit:cover;border-radius:6px}
+.detail-thumb small{font-size:10px;color:#485b6b;font-weight:800}
+.detail-photo-note{margin:9px 2px;font-size:11px;line-height:1.55;color:#7c8898}
+.detail-information{min-width:0}
+.detail-category{font-size:11px;color:#637186;font-weight:800;text-transform:uppercase;letter-spacing:.09em}
+.detail-description{margin:12px 0 18px;font-size:15px;line-height:1.7;color:#435166}
+.detail-price-row{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;margin:16px 0}
+.detail-price-row strong{font:800 clamp(28px,3.1vw,38px) 'Space Grotesk',sans-serif;color:#152032}
+.detail-price-row del{font-size:17px;color:#98a0a8}
+.detail-sale{font-size:18px;color:#0c8a55}
+.detail-availability{padding:10px 14px;background:#f0f8ea;color:#1c7447;border-radius:8px;width:max-content;font-size:11px;font-weight:800}
+.detail-size-block{margin-top:27px}
+.detail-section-header{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:13px}
+.detail-section-header button{color:#2164a3;background:none;border:0;font-size:11px;font-weight:800}
+.detail-size-list{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}
+.detail-size-list button{min-width:53px;height:52px;border:1px solid #d4d9dc;background:#fff;border-radius:11px;font-size:16px;color:#28374a;font-weight:800}
+.detail-size-list button.selected{border:2px solid #172339;background:#ddff59}
+.detail-size-list button:disabled{background:#eff1f2;text-decoration:line-through;color:#98a2aa}
+.detail-delivery{margin-top:26px;padding:17px;background:#f2f5f8;border:1px solid #e1e7ec;border-radius:13px}
+.detail-delivery strong{font-size:12px}
+.detail-delivery p{font-size:11px;color:#647489;line-height:1.6;margin:7px 0 0}
+.detail-button-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:9px;margin-top:25px}
+.detail-button-row button{padding:14px 12px;border-radius:10px;font-size:11px;font-weight:900;border:1px solid #d2d8d6}
+.detail-wishlist{background:#fff;color:#344352}
+.detail-add{background:#fff;color:#172339}
+.detail-buy{background:#ddff59;color:#172339;border-color:#ddff59!important}
+.detail-add:hover,.detail-buy:hover{filter:brightness(.97)}
+.detail-pay-note{font-size:10px;color:#7a8798;text-align:center;margin:13px 0}
+@media(max-width:850px){
+ .detail-body{grid-template-columns:1fr;gap:20px}
+ .detail-main-media{height: min(60vw,490px)}
+ .product-dialog{width:min(760px,calc(100vw - 14px))}
+}
+@media(max-width:620px){
+ .product-dialog{width:100vw;height:100dvh;max-height:100dvh;border-radius:0}
+ .detail-topbar{padding:15px 16px 12px}
+ .detail-topbar h2{font-size:22px}
+ .detail-body{padding:12px 13px 100px}
+ .detail-main-media{height:62vw;min-height:250px}
+ .detail-thumbnails{gap:7px}
+ .detail-thumb{flex-basis:80px}
+ .detail-thumb img{height:65px}
+ .detail-button-row{position:sticky;bottom:0;background:#fff;padding:10px 0;z-index:5;grid-template-columns:auto 1fr 1fr}
+ .detail-button-row button{padding:12px 7px}
+}
