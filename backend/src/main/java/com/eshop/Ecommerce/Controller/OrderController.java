@@ -33,7 +33,8 @@ public class OrderController {
                 orderRequestDTO.getPgName(),
                 orderRequestDTO.getPgPaymentId(),
                 orderRequestDTO.getPgStatus(),
-                orderRequestDTO.getPgResponseMessage()
+                orderRequestDTO.getPgResponseMessage(),
+                orderRequestDTO.getCheckoutToken()
         );
         return new ResponseEntity<>(order, HttpStatus.CREATED);
     }

@@ -37,6 +37,10 @@ public class Order {
     private Double totalAmount;
     private String orderStatus;
 
+    // The same COD request must not create multiple orders or reserve stock twice.
+    @Column(length=64,unique=true)
+    private String checkoutToken;
+
     // Reference to Address
     @ManyToOne
     @JoinColumn(name = "address_id")

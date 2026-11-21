@@ -8,6 +8,9 @@ public interface OrderService {
     @Transactional
     OrderDTO placeOrder(String emailId, Long addressId, String paymentMethod, String pgName, String pgPaymentId, String pgStatus, String pgResponseMessage);
 
+    OrderDTO placeOrder(String emailId, Long addressId, String paymentMethod, String pgName,
+        String pgPaymentId, String pgStatus, String pgResponseMessage, String checkoutToken);
+
     // Internal-only path: invoked after a verified Stripe webhook.
     OrderDTO placeVerifiedStripeOrder(String emailId, Long addressId, String stripeSessionId);
 

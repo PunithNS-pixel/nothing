@@ -73,14 +73,21 @@ class CustomerBrowserCheckoutTest {
   mvc.perform(get("/api/users/addresses").cookie(jwt))
    .andExpect(status().isOk()).andExpect(jsonPath("$[0].addressId").value(addressId));
 
+  String checkoutToken=UUID.randomUUID().toString();
+  String codRequest=json.writeValueAsString(Map.of("addressId",addressId,
+     "pgName","COD","pgStatus","PENDING","pgResponseMessage","Pay on delivery",
+     "checkoutToken",checkoutToken));
   var order=mvc.perform(post("/api/order/users/payments/COD").cookie(jwt)
-   .contentType(MediaType.APPLICATION_JSON)
-   .content(json.writeValueAsString(Map.of("addressId",addressId,
-     "pgName","COD","pgStatus","PENDING","pgResponseMessage","Pay on delivery"))))
+   .contentType(MediaType.APPLICATION_JSON).content(codRequest))
    .andExpect(status().isCreated()).andReturn();
   long orderId=json.readTree(order.getResponse().getContentAsString()).path("orderId").asLong();
   assertTrue(orderId>0);
   assertEquals(10,products.findById(product.getProductId()).orElseThrow().getQuantity());
+  mvc.perform(post("/api/order/users/payments/COD").cookie(jwt)
+   .contentType(MediaType.APPLICATION_JSON).content(codRequest))
+   .andExpect(status().isCreated()).andExpect(jsonPath("$.orderId").value(orderId));
+  assertEquals(10,products.findById(product.getProductId()).orElseThrow().getQuantity(),
+    "Identical COD requests must reserve inventory only once");
 
   // Regression: the success path must NOT be replaced with "Full authentication
   // is required" when the frontend immediately loads the order list.

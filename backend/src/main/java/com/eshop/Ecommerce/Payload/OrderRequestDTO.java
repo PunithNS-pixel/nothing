@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class OrderRequestDTO {
     private Long addressId;
+    private String checkoutToken;
     private String paymentMethod;
     private String pgName;
     private String pgPaymentId;

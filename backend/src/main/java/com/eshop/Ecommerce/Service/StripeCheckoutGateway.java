@@ -31,6 +31,8 @@ public class StripeCheckoutGateway {
  private final ObjectMapper json;
  @Value("${nothing.email.verification.required:false}")
  private boolean requireVerifiedEmail;
+ @Value("${checkout.require.phone:false}")
+ private boolean requireDeliveryPhone;
 
  public StripeCheckoutGateway(CartRepository carts,AddressRepository addresses,
   StripeCheckoutAttemptRepository attempts,AuthUtil auth,OrderService orders,ObjectMapper json,
@@ -73,6 +75,12 @@ public class StripeCheckoutGateway {
       .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Delivery address not found"));
   if(address.getUser()==null || !buyer.getUserid().equals(address.getUser().getUserid()))
    throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Address does not belong to buyer");
+  if(requireDeliveryPhone && (address.getRecipientName()==null
+   || address.getRecipientName().isBlank() || address.getPhoneNumber()==null
+   || !address.getPhoneNumber().matches("\\+?[0-9]{10,15}")
+   || address.getPincode()==null || !address.getPincode().matches("[0-9]{6}")))
+   throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+    "Complete recipient name, phone and six-digit PIN before online checkout");
   Cart cart=carts.findCartByEmail(buyer.getEmail());
   if(cart==null||cart.getCartItems().isEmpty())
    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Cart is empty");

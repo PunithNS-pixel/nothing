@@ -70,17 +70,45 @@ public class OrderServiceImpl implements OrderService {
         if (!"COD".equalsIgnoreCase(paymentMethod)) {
             throw new APIException("Use Stripe Checkout for online payments; only COD can be placed directly");
         }
-        return saveOrder(emailId,addressId,false,null);
+        return placeOrder(emailId,addressId,paymentMethod,pgName,pgPaymentId,pgStatus,pgResponseMessage,null);
+    }
+
+    @Override
+    @Transactional
+    public OrderDTO placeOrder(String emailId,Long addressId,String paymentMethod,String pgName,
+      String pgPaymentId,String pgStatus,String pgResponseMessage,String checkoutToken){
+        if(!"COD".equalsIgnoreCase(paymentMethod))
+            throw new APIException("Only verified Stripe webhooks can create online paid orders");
+        if(checkoutToken!=null&&!checkoutToken.isBlank()){
+            if(!checkoutToken.matches("[0-9a-fA-F-]{36}"))
+                throw new APIException("Invalid COD checkout request identifier");
+            var existing=orderRepository.findByCheckoutToken(checkoutToken);
+            if(existing.isPresent()){
+                Order order=existing.get();
+                if(!emailId.equalsIgnoreCase(order.getEmail()))
+                    throw new APIException("Checkout identifier belongs to a different customer");
+                OrderDTO dto=new OrderDTO();
+                dto.setOrderId(order.getOrderId());
+                dto.setOrderDate(order.getOrderDate());
+                dto.setOrderStatus(order.getOrderStatus());
+                dto.setEmail(order.getEmail());
+                dto.setTotalAmount(order.getTotalAmount());
+                dto.setAddressId(order.getAddress()==null?null:order.getAddress().getAddressId());
+                dto.setOrderItems(java.util.List.of());
+                return dto;
+            }
+        }
+        return saveOrder(emailId,addressId,false,null,checkoutToken);
     }
 
     @Override
     @Transactional
     public OrderDTO placeVerifiedStripeOrder(String emailId, Long addressId, String stripeSessionId) {
         if(stripeSessionId==null||stripeSessionId.isBlank())throw new APIException("Missing verified Stripe session");
-        return saveOrder(emailId,addressId,true,stripeSessionId);
+        return saveOrder(emailId,addressId,true,stripeSessionId,null);
     }
 
-    private OrderDTO saveOrder(String emailId,Long addressId,boolean stripeVerified,String stripeSessionId){
+    private OrderDTO saveOrder(String emailId,Long addressId,boolean stripeVerified,String stripeSessionId,String checkoutToken){
         Cart cart = cartRepository.findCartByEmail(emailId);
         if (cart == null) {
             throw new ResourceNotFoundException("Cart", "email", emailId);
@@ -108,6 +136,7 @@ public class OrderServiceImpl implements OrderService {
         order.setTotalAmount(cart.getTotalPrice());
         order.setOrderStatus("Accepted");
         order.setAddress(address);
+        order.setCheckoutToken(stripeVerified?null:checkoutToken);
 
         Payment payment = stripeVerified
             ? new Payment("STRIPE", stripeSessionId, "PAID", "Verified Stripe Checkout webhook", "Stripe")

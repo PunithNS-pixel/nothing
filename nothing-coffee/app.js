@@ -643,6 +643,7 @@ function showCheckoutWizard(){
  return new Promise(async resolve=>{
   const dialog=$('checkoutDialog'),root=$('checkoutContent');
   let stage=0,addresses=[],address=null,payment='COD',stripeReady=false,processing=false,finished=false,error='';
+  const codCheckoutToken=crypto.randomUUID();
   const close=()=>{
    if(processing)return;
    if(dialog.open)dialog.close();
@@ -665,7 +666,8 @@ function showCheckoutWizard(){
     }
     const result=await request('/api/order/users/payments/COD',{
      method:'POST',body:JSON.stringify({addressId:address.addressId,
-      pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Pay on delivery'})
+      pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Pay on delivery',
+      checkoutToken:codCheckoutToken})
     });
     if(!result.orderId)throw new Error('Order confirmation was not returned. Check ORDERS before trying again.');
     finished=true;processing=false;cart={};saveGuest();updateCart();closeCart();
@@ -681,7 +683,7 @@ function showCheckoutWizard(){
     loadCatalog().catch(e=>console.warn('Catalog refresh after COD:',e));
     return;
    }catch(e){
-    error='Order not submitted: '+e.message;
+    error='Unable to confirm checkout result: '+e.message;
     processing=false;
     paint();
     notify('Check your order status before retrying if payment or network response is uncertain.',true);
