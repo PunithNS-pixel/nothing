@@ -1,3 +1,42 @@
+## Real OpenSearch typo matching and order tracking
+
+### Search Bluetooth with a spaced typo
+
+OpenSearch now sends both the original phrase and a bounded, joined, fuzzy search for short split-word typos such as `blue teuth` -> `blueteuth` (up to two edits). PostgreSQL remains the inventory source; search hits are returned by OpenSearch, never by a hardcoded fallback.
+
+```bash
+git switch feat/nothing-marketplace-springboot
+git pull --ff-only origin feat/nothing-marketplace-springboot
+docker compose -f backend/compose.yml --env-file backend/.env up -d --build
+bash scripts/repair-marketplace.sh
+bash scripts/smoke-marketplace.sh
+curl -fsSG http://localhost:8000/api/search/products --data-urlencode 'q=blue teuth' --data-urlencode 'size=20' | python3 -m json.tool
+```
+
+The Docker integration test requires actual Bluetooth product matches for the exact query `blue teuth`. If your browser continues to show old output, hard-refresh the storefront and check `http://localhost:8000/app.js` to verify you're using the updated frontend.
+
+### Track a customer's order
+
+Sign in, place an authenticated COD or verified Stripe order, then select **ORDERS -> TRACK YOUR ORDER**. Tracking is available only for the signed-in owner; other customers cannot view that order.
+
+```http
+GET /api/customer/orders/{orderId}/tracking
+GET /api/admin/orders/{orderId}/tracking
+PUT /api/admin/orders/{orderId}/tracking
+Content-Type: application/json
+
+{"stage":"CONFIRMED","note":"Order details verified"}
+```
+
+Supported milestones are **PLACED -> CONFIRMED -> PACKED -> SHIPPED -> OUT_FOR_DELIVERY -> DELIVERED**. Cancellation is allowed before shipment. Transitions cannot skip or reverse steps. Authorized staff can enter a carrier and tracking reference upon shipment and optionally a manually estimated delivery date. Each new step is recorded in PostgreSQL with a timestamp, and legacy orders do not get invented historical timestamps.
+
+The admin website has a **FULFILLMENT** panel for these updates. Seller updates check whether the order contains products belonging to that seller; sellers cannot alter unrelated orders.
+
+**Not real-time courier GPS/tracking:** the carrier reference, stages and dates are manually supplied by store staff. Carrier APIs, real scans, verified delivery evidence and automatic shipping notifications require a separate authenticated courier/shipping-provider integration.
+
+Use `bash scripts/smoke-marketplace.sh` for read-only verification. To exercise the full tracking flow, create a demo customer order, open the customer timeline, log in as the configured admin, and advance the demo order. Do not mark real orders delivered as a test.
+
+---
 # NOTHING MARKET — Spring Boot marketplace (editorial redesign)
 
 > **New development branch:** `feat/nothing-marketplace-springboot` forked from `backend`. Original `main`, `backend` and Python/FastAPI `feat/nothing` remain unchanged.
