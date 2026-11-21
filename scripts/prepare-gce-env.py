@@ -54,17 +54,18 @@ def prepare(source, destination, domain):
     if key and not key.startswith("sk_test_"):
         raise ValueError("For this public DEMO, only Stripe TEST keys are allowed. Remove the live/unknown Stripe key.")
     mail_provider = config.get("MAIL_PROVIDER", "smtp")
-    if mail_provider not in ("smtp", "gmail-api"):
-        raise ValueError("MAIL_PROVIDER must be smtp or gmail-api")
+    if mail_provider not in ("smtp", "gmail-api", "resend"):
+        raise ValueError("MAIL_PROVIDER must be smtp, gmail-api or resend")
     if config.get("MAIL_NOTIFICATIONS_ENABLED", "false").lower() == "true":
         common = ("EMAIL_FROM",)
         provider_fields = (("GMAIL_OAUTH_CLIENT_ID", "GMAIL_OAUTH_CLIENT_SECRET", "GMAIL_OAUTH_REFRESH_TOKEN")
-                           if mail_provider == "gmail-api"
-                           else ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"))
+                           if mail_provider == "gmail-api" else
+                           ("RESEND_API_KEY",) if mail_provider == "resend" else
+                           ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"))
         if any(not config.get(k) for k in common + provider_fields):
             # Do not claim delivery is configured if OAuth/SMTP is incomplete.
             config["MAIL_NOTIFICATIONS_ENABLED"] = "false"
-            print("Email notifications disabled: private Gmail/SMTP credentials incomplete.")
+            print("Email notifications disabled: private mail provider credentials incomplete.")
     if mail_provider == "gmail-api" and any(
         not config.get(k) for k in ("GMAIL_OAUTH_CLIENT_ID", "GMAIL_OAUTH_CLIENT_SECRET", "GMAIL_OAUTH_REFRESH_TOKEN", "EMAIL_FROM")
     ):
@@ -72,6 +73,10 @@ def prepare(source, destination, domain):
         config["MAIL_PROVIDER"] = "smtp"
         config["MAIL_NOTIFICATIONS_ENABLED"] = "false"
         print("Gmail API authentication incomplete; falling back to disabled SMTP for demo.")
+    if mail_provider == "resend" and any(not config.get(k) for k in ("RESEND_API_KEY", "EMAIL_FROM")):
+        config["MAIL_PROVIDER"] = "smtp"
+        config["MAIL_NOTIFICATIONS_ENABLED"] = "false"
+        print("Resend API credentials incomplete; falling back to disabled SMTP for demo.")
     config.update({
         "SITE_DOMAIN": domain.lower(),
         "FRONTEND_URL": f"https://{domain.lower()}/",

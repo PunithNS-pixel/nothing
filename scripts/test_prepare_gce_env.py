@@ -67,6 +67,22 @@ class GcePrivateEnvironmentTests(unittest.TestCase):
         self.assertEqual("smtp", generated["MAIL_PROVIDER"])
         self.assertEqual("false", generated["MAIL_NOTIFICATIONS_ENABLED"])
 
+    def test_valid_resend_configuration_preserved(self):
+        self.source.write_text(
+            "MAIL_PROVIDER=resend\\nRESEND_API_KEY=re_test_only\\n"
+            "EMAIL_FROM=orders@verified.example.org\\nMAIL_NOTIFICATIONS_ENABLED=true\\n")
+        prepare(self.source, self.target, "demo.example.org")
+        output = parse_env(self.target)
+        self.assertEqual("resend", output["MAIL_PROVIDER"])
+        self.assertEqual("true", output["MAIL_NOTIFICATIONS_ENABLED"])
+
+    def test_missing_resend_key_disables_sender(self):
+        self.source.write_text("MAIL_PROVIDER=resend\\nMAIL_NOTIFICATIONS_ENABLED=true\\n")
+        prepare(self.source, self.target, "demo.example.org")
+        output = parse_env(self.target)
+        self.assertEqual("smtp", output["MAIL_PROVIDER"])
+        self.assertEqual("false", output["MAIL_NOTIFICATIONS_ENABLED"])
+
     def test_reject_invalid_hostname(self):
         with self.assertRaisesRegex(ValueError, "DNS hostname"):
             prepare(self.source, self.target, "https://evil.example.org/;rm")
