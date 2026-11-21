@@ -48,6 +48,9 @@ public class RetailStoreController {
      dto.setEmail(o.getEmail());
      dto.setOrderDate(o.getOrderDate());
      dto.setTotalAmount(o.getTotalAmount());
+     dto.setOrderSubtotal(o.getOrderSubtotal());
+     dto.setDiscountAmount(o.getDiscountAmount());
+     dto.setOfferCode(o.getOfferCode());
      dto.setOrderStatus(o.getOrderStatus());
      dto.setOrderItems(o.getOrderItems().stream().map(item->{
        OrderItemDTO detail=new OrderItemDTO();
