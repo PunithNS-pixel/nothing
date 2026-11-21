@@ -12,7 +12,7 @@ concurrency:
 jobs:
   full-stack:
     runs-on: ubuntu-latest
-    timeout-minutes: 28
+    timeout-minutes: 42
     steps:
       - uses: actions/checkout@v4
       - name: OpenSearch operating-system requirement
@@ -44,6 +44,17 @@ jobs:
         run: docker compose -f backend/compose.yml --env-file backend/.env up -d --build
       - name: Exercise Spring Boot, OpenSearch, messaging, storefront and monitoring
         run: bash scripts/smoke-marketplace.sh
+      - name: Baseline concurrent read traffic (24 workers, 600 requests)
+        run: python3 scripts/load-marketplace.py --requests 600 --concurrency 24 --p95-ms 3500 --max-error-rate 0.01 --json-out load-results.json
+      - name: Kafka, OpenSearch, RabbitMQ and app failure recovery
+        run: CHAOS_ACK=ci-disposable bash scripts/chaos-marketplace.sh
+      - name: Publish benchmark JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketplace-load-results
+          path: load-results.json
+          if-no-files-found: ignore
       - name: Print failing service logs
         if: failure()
         run: docker compose -f backend/compose.yml --env-file backend/.env logs --tail=180 app frontend postgres kafka opensearch rabbitmq prometheus grafana

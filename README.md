@@ -264,3 +264,8 @@ Endpoints:
 **Payment limitations before production:** This implementation uses an immutable Stripe Checkout amount and an attempt record, but inventory is not reserved before payment. If stock becomes unavailable or the user's cart changes between opening Stripe and its paid webhook, the transaction rejects fulfillment and Stripe retries; an operator must investigate and potentially refund the payment through Stripe Dashboard. Automatic refund/reconciliation, cart locking or time-limited reservations, retry/error monitoring, webhook DLQ, PCI/compliance review, HTTPS, CSRF controls, and full live Stripe tests are needed before taking real money. Until then **use Stripe test-mode keys only**. Stripe keys are private, and a production webhook should be configured with your public HTTPS domain.
 
 **Aiven:** The same Nginx proxy and Stripe variables are included in `backend/compose.aiven.yml`; this is configuration only, not proof of a live Aiven deployment.
+
+
+## Cloud reliability and load testing
+
+The Aiven live connectivity verifier, bounded concurrent HTTP benchmark, and disposable Kafka/OpenSearch/RabbitMQ recovery tests are documented in [Reliability, load and Aiven](docs/RELIABILITY_LOAD_AIVEN.md). Live provider credentials and production-scale capacity are not implied by local CI results.

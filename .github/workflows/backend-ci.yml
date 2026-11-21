@@ -84,6 +84,12 @@ jobs:
           assert len(brands)>=20
           print('Marketplace frontend IDs and demo catalog validated:',len(rows),'items,',len(brands),'brands')
           PY
+      - name: Validate benchmark and Aiven scripts
+        run: |
+          python3 -m py_compile scripts/load-marketplace.py backend/scripts/verify-aiven.py
+          bash -n scripts/chaos-marketplace.sh
+          python3 backend/scripts/verify-aiven.py --help >/dev/null
+          python3 scripts/load-marketplace.py --help >/dev/null
       - name: Maven compile and tests
         working-directory: backend
         run: mvn -B clean verify
