@@ -662,7 +662,21 @@ async function showOrders(){
    reschedule.textContent='REQUEST DELIVERY DATE ↗';reschedule.onclick=()=>{d.close();newAfterSaleRequest(o.orderId,'RESCHEDULE')};
    const returned=document.createElement('button');returned.type='button';returned.className='track-order-button';
    returned.textContent='REQUEST RETURN ↗';returned.onclick=()=>{d.close();newAfterSaleRequest(o.orderId,'RETURN')};
-   row.append(reschedule,returned);root.append(row);
+   const emailButton=document.createElement('button');emailButton.type='button';
+   emailButton.className='track-order-button';emailButton.textContent='CONFIRMATION EMAIL STATUS ✉';
+   emailButton.onclick=async()=>{
+    try{
+     const result=await request('/api/customer/orders/'+encodeURIComponent(o.orderId)+'/confirmation');
+     let message;
+     if(result.status==='SENT')message='Order #'+o.orderId+': confirmation accepted by the email provider. Check your inbox or spam folder.';
+     else if(!result.sendingEnabled)message='Order #'+o.orderId+': email is queued, but the store has not enabled SMTP sending yet.';
+     else if(result.status==='SENDING')message='Order #'+o.orderId+': confirmation email is being sent.';
+     else if(result.status==='PENDING')message='Order #'+o.orderId+': confirmation email queued or retrying. Check again shortly.';
+     else message='This older order predates email tracking.';
+     notify(message);
+    }catch(e){notify('Could not check email status: '+e.message,true)}
+   };
+   row.append(reschedule,returned,emailButton);root.append(row);
   }
   const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>d.close();
   root.append(close);d.showModal();
@@ -786,7 +800,11 @@ async function resumeStripeCheckout(){
    const data=await request('/api/checkout/stripe/status?sessionId='+encodeURIComponent(sessionId));
    if(data.status==='COMPLETED'){
     cart={};promoQuote=null;promoRequestSeq++;saveGuest();updateCart();
-    notify('Stripe payment verified and order #'+data.orderId+' placed.');
+    try{
+     const receipt=await request('/api/customer/orders/'+encodeURIComponent(data.orderId)+'/confirmation');
+     notify('Stripe payment verified! Order #'+data.orderId+' confirmed. '+(receipt.sendingEnabled?'Confirmation email queued.':'Email sending awaits SMTP setup.'));
+    }catch(e){notify('Stripe payment verified and order #'+data.orderId+' placed.')}
+
     await loadCatalog();return;
    }
    notify('Payment submitted. Order confirmation is awaiting the verified Stripe webhook. Check ORDERS shortly.');
@@ -879,7 +897,11 @@ async function checkout(){
     })});
     cart={};promoQuote=null;promoRequestSeq++;saveGuest();updateCart();closeCart();
     loadOffers().catch(console.warn);
-    notify('Order #'+order.orderId+' placed! Payment due on delivery.');
+    try{
+     const receipt=await request('/api/customer/orders/'+encodeURIComponent(order.orderId)+'/confirmation');
+     notify('Order #'+order.orderId+' placed! Payment due on delivery. '+(receipt.sendingEnabled?'Confirmation email queued.':'Email delivery awaits store SMTP setup.'));
+    }catch(e){notify('Order #'+order.orderId+' placed! Payment due on delivery.')}
+
     try{await loadCatalog()}catch(e){console.warn('Catalog refresh after order:',e)}
     await showOrders();return;
    }
