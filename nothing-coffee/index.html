@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#121b30">
   <meta name="description" content="Nothing Market — shop electronics, fashion, essentials and more across India.">
   <title>NOTHING MARKET | Everything you need, nothing you don't.</title>
-  <link rel="stylesheet" href="styles.css?v=3">
-  <script src="app.js?v=3" defer></script>
+  <link rel="stylesheet" href="styles.css?v=4">
+  <script src="app.js?v=4" defer></script>
 </head>
 <body>
   <div class="announcement">FREE DELIVERY ABOVE ₹999 <span>✦</span> SHOP THE NEW EVERYDAY</div>
@@ -30,7 +30,7 @@
       <button id="cartBtn" class="cart-launch">BAG <span id="cartCount">0</span></button>
     </div>
   </header>
-  <nav class="category-nav"><a href="#catalog">ALL PRODUCTS</a><button data-category-nav="Electronics">ELECTRONICS</button><button data-category-nav="Fashion">FASHION</button><button data-category-nav="Home & Living">HOME & LIVING</button><button data-category-nav="Grocery">GROCERY</button><button data-category-nav="Beauty">BEAUTY</button><a href="#retailers">FOR RETAILERS</a><a href="#about">OUR PROMISE</a></nav>
+  <nav class="category-nav"><a href="#home">HOME</a><a href="#categories">SHOP CATEGORIES</a><a href="#deals">DEALS & PICKS</a><a href="#catalog">ALL PRODUCTS</a><button data-category-nav="Electronics">ELECTRONICS</button><button data-category-nav="Fashion">FASHION</button><button data-category-nav="Home & Living">HOME & LIVING</button><button data-category-nav="Grocery">GROCERY</button><button data-category-nav="Beauty">BEAUTY</button><a href="#retailers">FOR RETAILERS</a><a href="#about">OUR PROMISE</a></nav>
   <main>
     <section class="hero" id="home">
       <div class="hero-copy">
@@ -43,6 +43,14 @@
       <div class="hero-art" aria-hidden="true"><div class="hero-rings"><div class="circle c1"></div><div class="circle c2"></div></div><img class="hero-object object-1" src="https://images.unsplash.com/photo-1754142654807-1dfcdc3f7f22?auto=format&fit=crop&w=600&q=80" alt=""><img class="hero-object object-2" src="https://images.unsplash.com/photo-1719523677291-a395426c1a87?auto=format&fit=crop&w=600&q=80" alt=""><img class="hero-object object-3" src="https://images.unsplash.com/photo-1731762524352-b5663f83a830?auto=format&fit=crop&w=500&q=80" alt=""><div class="hero-number">01 / 05</div><div class="hero-badge">CURATED FOR<br>YOUR EVERYDAY ✦</div></div>
     </section>
     <section class="service-strip" id="about"><div>✳ <strong>REAL-TIME STOCK</strong><small>Powered by PostgreSQL</small></div><div>⌕ <strong>SMART SEARCH</strong><small>Find what you mean</small></div><div>↗ <strong>DELIVERY ACROSS INDIA</strong><small>Shop by your city</small></div><div>✧ <strong>SECURE CHECKOUT</strong><small>Cash on delivery demo</small></div></section>
+    <section class="marketplace-categories" id="categories">
+      <div class="section-intro"><div><span class="eyebrow">EVERYTHING IN ONE PLACE</span><h2>SHOP BY <em>CATEGORY.</em></h2></div><p>Browse clothing, gadgets, household finds and daily essentials.</p></div>
+      <div class="category-showcase" id="categoryShowcase"></div>
+    </section>
+    <section class="marketplace-deals" id="deals">
+      <div class="deals-heading"><div><span class="eyebrow">THE NOTHING MARKET EDIT</span><h2 id="dealsTitle">POPULAR PICKS</h2><p id="dealsSubtitle">Current items selected from the live product catalog.</p></div><a href="#catalog" class="outline-button">SHOP ALL PRODUCTS ↗</a></div>
+      <div id="dealGrid" class="deal-grid"></div>
+    </section>
     <section class="catalog-section" id="catalog">
       <div class="section-intro"><div><span class="eyebrow">THE NOTHING EDIT / 2026</span><h2>THE GOOD <em>STUFF.</em></h2></div><p>Discover your next favorite thing. Filter, search and find exactly what you need.</p></div>
       <div class="filter-bar">
@@ -79,5 +87,17 @@
   </aside>
   <dialog id="modal" class="modal" aria-label="Account and checkout"><div id="modalContent"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="cartNudge" class="cart-nudge" role="status" aria-live="polite" hidden>
+    <span class="nudge-check">✓</span><strong id="cartNudgeText">Added to bag</strong>
+    <button id="nudgeCartBtn" type="button">VIEW CART ↗</button>
+    <button id="nudgeContinueBtn" type="button" aria-label="Continue shopping">✕</button>
+  </div>
+  <nav class="bottom-nav" aria-label="Shop navigation">
+    <button id="bottomHomeBtn" type="button"><span>⌂</span>HOME</button>
+    <button id="bottomCategoriesBtn" type="button"><span>▦</span>CATEGORIES</button>
+    <button id="bottomDealsBtn" type="button"><span>✦</span>DEALS</button>
+    <button id="bottomAccountBtn" type="button"><span>♙</span>ACCOUNT</button>
+    <button id="bottomCartBtn" type="button"><span>▣</span>CART <b id="bottomCartCount" hidden>0</b></button>
+  </nav>
 </body>
 </html>

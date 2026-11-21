@@ -9,6 +9,13 @@ const productById=id=>catalog.find(p=>String(p.productId)===String(id));
 const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icons={'Electronics':'🎧','Fashion':'👟','Home & Living':'💡','Grocery':'🛒','Beauty':'🧴','Coffee':'☕'};
+const productCategories=[
+ {name:'Electronics',icon:'🎧',sub:'Gadgets & tech'},
+ {name:'Fashion',icon:'👕',sub:'Everyday style'},
+ {name:'Home & Living',icon:'🛋️',sub:'Make it yours'},
+ {name:'Grocery',icon:'🛒',sub:'Daily essentials'},
+ {name:'Beauty',icon:'🧴',sub:'Care & wellness'}
+];
 const tones={'Electronics':'#e8eefa','Fashion':'#ffede8','Home & Living':'#f2eddc','Grocery':'#ecf6db','Beauty':'#ffecf2','Coffee':'#f5e9d8'};
 // A recognisable, product-specific illustration is preferable to an unrelated stock photo.
 const productIcons=[
@@ -47,6 +54,8 @@ function updateCart(){
  const items=Object.entries(cart).filter(([id,q])=>Number(q)>0&&productById(id));
  const count=items.reduce((n,[id,q])=>n+Number(q),0);
  $('cartCount').textContent=count;
+ $('bottomCartCount').textContent=count;
+ $('bottomCartCount').hidden=count===0;
  $('cartTotal').textContent=money(items.reduce((n,[id,q])=>n+itemPrice(productById(id))*q,0));
  $('cartItems').innerHTML=items.length?items.map(([id,q])=>{
    const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+escape(id)+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
@@ -66,15 +75,27 @@ async function persistCart(){
  finally{cartBusy=false;updateCart()}
 }
 async function changeQty(id,delta){
- const p=productById(id);if(!p||cartBusy)return;
+ const p=productById(id);if(!p||cartBusy)return false;
  const next=Math.max(0,Math.min(99,Number(cart[id]||0)+delta));
- if(next>p.stock){notify('Only '+p.stock+' available right now',true);return}
+ if(next>p.stock){notify('Only '+p.stock+' available right now',true);return false}
  const before={...cart};
  if(next)cart[id]=next;else delete cart[id];
  updateCart();
- try{await persistCart()}catch{cart=before;updateCart()}
+ try{await persistCart();return true}catch{cart=before;updateCart();return false}
 }
-async function addItem(id){await changeQty(id,1)}
+function showCartNudge(p){
+ const bar=$('cartNudge');
+ $('cartNudgeText').textContent=p.name+' added to your bag';
+ bar.hidden=false;bar.classList.add('show');
+ clearTimeout(showCartNudge.timer);
+ showCartNudge.timer=setTimeout(()=>{bar.hidden=true;bar.classList.remove('show')},6500);
+}
+async function addItem(id){
+ if(await changeQty(id,1)){
+  const p=productById(id);
+  if(p)showCartNudge(p);
+ }
+}
 function openCart(){$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
 function closeCart(){$('overlay').hidden=true;$('cartDrawer').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true')}
 function drawProducts(){
@@ -84,10 +105,34 @@ function drawProducts(){
   const stock=Number(p.stock),icon=chooseIcon(p),safeId=Number(p.productId);
   let image=productArtwork(p);
   if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
+  const off=p.originalPrice>p.price?Math.round((p.originalPrice-p.price)*100/p.originalPrice):0;
+  const deal=off>0?'<span class="discount-label">'+off+'% OFF</span>':'';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add));
+}
+function renderCategoryShowcase(){
+ $('categoryShowcase').innerHTML=productCategories.map(c=>{
+  const count=catalog.filter(p=>p.category===c.name).length;
+  return '<button class="category-tile" type="button" data-category-tile="'+escape(c.name)+'"><span class="category-tile-icon">'+c.icon+'</span><strong>'+escape(c.name)+'</strong><small>'+count+' PRODUCTS · '+escape(c.sub)+'</small><span class="category-tile-arrow">EXPLORE ↗</span></button>';
+ }).join('');
+ $('categoryShowcase').querySelectorAll('[data-category-tile]').forEach(b=>b.onclick=()=>setCategory(b.dataset.categoryTile));
+}
+function renderDeals(){
+ const active=catalog.filter(p=>p.stock>0);
+ const discounted=active.filter(p=>Number(p.originalPrice)>Number(p.price)).sort((a,b)=>
+  ((b.originalPrice-b.price)/b.originalPrice)-((a.originalPrice-a.price)/a.originalPrice));
+ const deals=discounted.length?discounted.slice(0,6):active.slice().sort((a,b)=>b.stock-a.stock).slice(0,6);
+ $('dealsTitle').textContent=discounted.length?'DEALS WITH REAL MARKDOWNS':'POPULAR PICKS';
+ $('dealsSubtitle').textContent=discounted.length?'Prices from the live product catalog. No countdown gimmicks.':'Selected from currently available products; no fake discounts.';
+ $('dealGrid').innerHTML=deals.map(p=>{
+  const original=Number(p.originalPrice),discount=original>p.price?Math.round((original-p.price)*100/original):0;
+  const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+p.productId+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':productArtwork(p);
+  return '<article class="deal-card"><div class="deal-image">'+thumb+'</div><div class="deal-details"><small>'+escape(p.category)+'</small><strong>'+escape(p.name)+'</strong><div class="deal-pricing"><b>'+money(itemPrice(p))+'</b>'+(discount?'<del>'+money(original)+'</del><span>'+discount+'% off</span>':'')+'</div><button type="button" class="deal-add" data-deal-add="'+p.productId+'">ADD TO BAG +</button></div></article>';
+ }).join('');
+ bindImageFallbacks($('dealGrid'));
+ $('dealGrid').querySelectorAll('[data-deal-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.dealAdd));
 }
 async function applyFilters(){
  const sequence=++searchRequestSeq;
@@ -137,7 +182,7 @@ async function loadCatalog(){
   if(!Array.isArray(data))throw new Error('Invalid catalog response');
   catalog=data.filter(p=>p&&p.productId!=null).map(p=>({...p,price:Number(p.price),stock:Number(p.stock)}));
   if(!catalog.length){$('productGrid').innerHTML='<div class="loading-card">No products found. Enable SEED_RETAIL_CATALOG for the demo or add products through the API.</div>';return}
-  setupFilters();await applyFilters();updateCart();
+  setupFilters();renderCategoryShowcase();renderDeals();await applyFilters();updateCart();
  }catch(e){$('productGrid').innerHTML='<div class="loading-card">Unable to connect to the retail API on '+escape(API)+'. '+escape(e.message)+'</div>';$('sourceStatus').textContent='● BACKEND OFFLINE';notify('Backend connection failed. Check API port and CORS.',true)}
 }
 async function loadServerCart(){
@@ -190,8 +235,12 @@ function showDialog(title,fields,button='CONTINUE'){
   const form=document.createElement('form'),inputs={};
   for(const f of fields){
    const label=document.createElement('label');label.textContent=f.label;const input=document.createElement('input');
-   input.name=f.name;input.required=true;input.type=f.type||'text';input.placeholder=f.placeholder||'';input.autocomplete=f.autocomplete||'off';
+   input.name=f.name;input.required=f.required!==false;input.type=f.type||'text';input.placeholder=f.placeholder||'';input.autocomplete=f.autocomplete||'off';
    if(f.minLength)input.minLength=f.minLength;
+   if(f.maxLength)input.maxLength=f.maxLength;
+   if(f.pattern)input.pattern=f.pattern;
+   if(f.inputMode)input.inputMode=f.inputMode;
+   if(f.value!=null)input.value=f.value;
    label.append(input);form.append(label);inputs[f.name]=input;
   }
   const actions=document.createElement('div');actions.className='actions';
@@ -254,10 +303,7 @@ async function logout(){
  syncAccountButtons();await applyFilters();updateCart();
  notify('Signed out. Your saved account bag remains in PostgreSQL.');
 }
-async function accountAction(){
- if(!user){await login('LOGIN');return}
- await informationModal('YOUR ACCOUNT','Signed in as '+user+'. Use ORDERS to track purchases, or the SIGN OUT button in the header.');
-}
+async function accountAction(){await showAccountOverview()}
 async function retailerAction(){
  if(!user && !await login())return;
  try{
@@ -379,6 +425,100 @@ async function resumeStripeCheckout(){
   }catch(e){notify('Payment status needs verification: '+e.message,true)}
  }
 }
+function addressFields(a={}){
+ return [
+  {name:'recipientName',label:'FULL NAME OF RECIPIENT',placeholder:'As on delivery contact',minLength:2,maxLength:80,value:a.recipientName||''},
+  {name:'phoneNumber',label:'MOBILE NUMBER (10–15 DIGITS)',placeholder:'9876543210',type:'tel',inputMode:'tel',pattern:'\\+?[0-9]{10,15}',value:a.phoneNumber||''},
+  {name:'buildingName',label:'FLAT / HOUSE / BUILDING',placeholder:'Flat 202, Block B',minLength:5,value:a.buildingName||''},
+  {name:'street',label:'STREET / AREA',placeholder:'Main Road, Indiranagar',minLength:5,value:a.street||''},
+  {name:'landmark',label:'LANDMARK (OPTIONAL)',placeholder:'Near metro station',required:false,value:a.landmark||''},
+  {name:'city',label:'CITY',placeholder:'Bengaluru',minLength:2,value:a.city||''},
+  {name:'state',label:'STATE',placeholder:'Karnataka',minLength:2,value:a.state||''},
+  {name:'country',label:'COUNTRY',placeholder:'India',value:a.country||'India'},
+  {name:'pincode',label:'SIX-DIGIT PIN CODE',placeholder:'560001',inputMode:'numeric',pattern:'[0-9]{6}',value:a.pincode||''},
+  {name:'addressLabel',label:'SAVE AS (OPTIONAL)',placeholder:'Home / Work',required:false,maxLength:24,value:a.addressLabel||''}
+ ];
+}
+function addressSummary(a){
+ return [a.addressLabel||'DELIVERY ADDRESS',a.recipientName||'Name needed',a.phoneNumber||'Phone needed',a.buildingName,a.street,a.landmark,a.city,a.state,a.pincode,a.country].filter(Boolean).join(' · ');
+}
+function completeAddress(a){
+ return !!(a&&a.recipientName&&a.recipientName.trim().length>=2&&/^\\+?[0-9]{10,15}$/.test(a.phoneNumber||'')&&/^[0-9]{6}$/.test(a.pincode||''));
+}
+async function editAddress(a=null){
+ const fields=addressFields(a||{});
+ const data=await showDialog(a?'UPDATE DELIVERY DETAILS':'ADD DELIVERY ADDRESS',fields,a?'SAVE CHANGES':'SAVE ADDRESS');
+ if(!data)return null;
+ try{
+  const valid=completeAddress(data);
+  if(!valid)throw new Error('Enter a recipient name, valid mobile number and six-digit PIN.');
+  const saved=await request(a?'/api/addresses/'+a.addressId:'/api/addresses',
+      {method:a?'PUT':'POST',body:JSON.stringify(data)});
+  notify('Delivery address saved successfully.');
+  return saved;
+ }catch(e){notify('Address not saved: '+e.message,true);return null}
+}
+function chooseSavedAddress(addresses){
+ return new Promise(resolve=>{
+  const d=$('modal'),root=$('modalContent');root.replaceChildren();
+  const h=document.createElement('h2');h.textContent='DELIVER TO';root.append(h);
+  const hint=document.createElement('p');hint.textContent='Choose a saved address. Recipient and phone number are required.';root.append(hint);
+  let closed=false;
+  const done=x=>{if(closed)return;closed=true;d.close();resolve(x)};
+  for(const a of addresses){
+   const btn=document.createElement('button');btn.type='button';btn.className='address-choice';
+   btn.innerHTML='<strong>'+escape(a.addressLabel||'SAVED ADDRESS')+'</strong><span>'+escape(addressSummary(a))+'</span><small>'+(completeAddress(a)?'SELECT THIS ADDRESS':'ADD PHONE DETAILS TO CONTINUE')+'</small>';
+   btn.onclick=()=>done({action:completeAddress(a)?'select':'edit',address:a});root.append(btn);
+  }
+  const add=document.createElement('button');add.type='button';add.className='outline-button';add.textContent='+ ADD A NEW ADDRESS';add.onclick=()=>done({action:'add'});root.append(add);
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='link-button';cancel.textContent='CANCEL';cancel.onclick=()=>done(null);root.append(cancel);
+  d.oncancel=e=>{e.preventDefault();done(null)};d.showModal();
+ });
+}
+async function selectDeliveryAddress(){
+ while(true){
+  const addresses=await request('/api/users/addresses');
+  if(!Array.isArray(addresses)||!addresses.length)return await editAddress();
+  const selection=await chooseSavedAddress(addresses);
+  if(!selection)return null;
+  if(selection.action==='select')return selection.address;
+  const saved=await editAddress(selection.action==='edit'?selection.address:null);
+  if(saved)return saved;
+ }
+}
+function confirmAction(title,message,label='CONFIRM'){
+ return new Promise(resolve=>{
+  const d=$('modal'),root=$('modalContent');root.replaceChildren();
+  const h=document.createElement('h2');h.textContent=title;
+  const p=document.createElement('p');p.textContent=message;p.className='confirmation-summary';
+  const actions=document.createElement('div');actions.className='actions';
+  let done=false;const finish=value=>{if(done)return;done=true;d.close();resolve(value)};
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='CANCEL';cancel.onclick=()=>finish(false);
+  const submit=document.createElement('button');submit.type='button';submit.className='primary';submit.textContent=label;submit.onclick=()=>finish(true);
+  actions.append(cancel,submit);root.append(h,p,actions);
+  d.oncancel=e=>{e.preventDefault();finish(false)};d.showModal();
+ });
+}
+async function showAccountOverview(){
+ if(!user){await login('LOGIN');return}
+ try{
+  const [session,addresses]=await Promise.all([request('/api/auth/user'),request('/api/users/addresses')]);
+  const d=$('modal'),root=$('modalContent');root.replaceChildren();
+  const title=document.createElement('h2');title.textContent='MY ACCOUNT';root.append(title);
+  const intro=document.createElement('p');intro.textContent=session.username+' · '+session.email;root.append(intro);
+  const section=document.createElement('div');section.className='account-overview';
+  const saved=document.createElement('div');saved.innerHTML='<strong>DELIVERY ADDRESSES</strong><small>'+addresses.length+' saved</small>';section.append(saved);
+  addresses.forEach(a=>{
+   const b=document.createElement('button');b.className='address-choice';b.innerHTML='<strong>'+escape(a.addressLabel||'ADDRESS')+'</strong><span>'+escape(addressSummary(a))+'</span><small>EDIT DETAILS ↗</small>';
+   b.onclick=async()=>{d.close();await editAddress(a);await showAccountOverview()};section.append(b);
+  });
+  const add=document.createElement('button');add.className='outline-button';add.textContent='+ ADD DELIVERY ADDRESS';
+  add.onclick=async()=>{d.close();await editAddress();await showAccountOverview()};section.append(add);
+  const orders=document.createElement('button');orders.className='outline-button';orders.textContent='MY ORDERS ↗';orders.onclick=()=>{d.close();showOrders()};section.append(orders);
+  const exit=document.createElement('button');exit.className='link-button';exit.textContent='CLOSE';exit.onclick=()=>d.close();section.append(exit);
+  root.append(section);d.showModal();
+ }catch(e){notify('Account details unavailable: '+e.message,true)}
+}
 async function checkout(){
  let checkoutStage='checking account';
  if(cartBusy)return;
@@ -393,23 +533,9 @@ async function checkout(){
  try{
   checkoutStage='saving shopping bag';
   await persistCart();
-  checkoutStage='loading delivery addresses';
-  let addresses=await request('/api/users/addresses');
-  let address=Array.isArray(addresses)&&addresses.length?addresses[0]:null;
-  if(!address){
-   const fields=[
-    {name:'buildingName',label:'BUILDING / HOUSE',placeholder:'House 123',minLength:5},
-    {name:'street',label:'STREET',placeholder:'Main Road',minLength:5},
-    {name:'city',label:'CITY',placeholder:'Bengaluru'},
-    {name:'state',label:'STATE',placeholder:'Karnataka'},
-    {name:'country',label:'COUNTRY',placeholder:'India'},
-    {name:'pincode',label:'POSTAL CODE',placeholder:'560001',minLength:5}
-   ];
-   const data=await showDialog('DELIVERY ADDRESS',fields,'SAVE ADDRESS');
-   if(!data)return;
-   checkoutStage='saving delivery address';
-   address=await request('/api/addresses',{method:'POST',body:JSON.stringify(data)});
-  }
+  checkoutStage='selecting verified delivery details';
+  const address=await selectDeliveryAddress();
+  if(!address)return;
   const total=Object.entries(cart).reduce((n,[id,q])=>n+(productById(id)?itemPrice(productById(id)):0)*q,0);
   const method=await choosePaymentMethod(total);
   if(!method)return;
@@ -421,8 +547,10 @@ async function checkout(){
     throw new Error('Stripe did not provide a valid hosted payment URL');
    window.location.assign(session.url);return;
   }
-  const confirm=await showDialog('PLACE ORDER · '+money(total),[{name:'confirmation',label:'TYPE YES TO CONFIRM CASH ON DELIVERY',placeholder:'YES'}],'PLACE ORDER');
-  if(!confirm||confirm.confirmation.toUpperCase()!=='YES')return;
+  const confirm=await confirmAction('CONFIRM CASH ON DELIVERY',
+   'Total '+money(total)+' · Payment collected upon delivery. Deliver to: '+addressSummary(address),
+   'PLACE COD ORDER');
+  if(!confirm)return;
   checkoutStage='placing cash-on-delivery order';
   const order=await request('/api/order/users/payments/COD',{method:'POST',body:JSON.stringify({addressId:address.addressId,pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Cash on delivery'})});
   cart={};saveGuest();updateCart();closeCart();
@@ -434,7 +562,14 @@ async function checkout(){
 }
 function bind(){
  $('year').textContent=new Date().getFullYear();
- $('cartBtn').onclick=openCart;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
+ $('cartBtn').onclick=openCart;
+ $('bottomCartBtn').onclick=openCart;
+ $('nudgeCartBtn').onclick=()=>{$('cartNudge').hidden=true;openCart()};
+ $('nudgeContinueBtn').onclick=()=>{$('cartNudge').hidden=true;document.querySelector('#catalog').scrollIntoView({behavior:'smooth'})};
+ $('bottomHomeBtn').onclick=()=>{window.scrollTo({top:0,behavior:'smooth'})};
+ $('bottomCategoriesBtn').onclick=()=>{$('categories').scrollIntoView({behavior:'smooth'})};
+ $('bottomDealsBtn').onclick=()=>{$('deals').scrollIntoView({behavior:'smooth'})};
+ $('bottomAccountBtn').onclick=accountAction;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
  $('accountBtn').onclick=accountAction;
  $('signInBtn').onclick=()=>login('LOGIN');
  $('registerBtn').onclick=()=>login('SIGNUP');

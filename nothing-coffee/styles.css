@@ -52,3 +52,62 @@ button[hidden],.nav-button[hidden]{display:none!important}
 .cart-icon .product-placeholder-name,.cart-icon .product-placeholder-label{display:none}
 @media(max-width:1100px){.header-right{gap:6px}.login-action,.signup-action,.logout-action{padding:9px 10px}}
 @media(max-width:760px){.login-action,.signup-action,.logout-action{font-size:10px}.header-right{flex-wrap:wrap;justify-content:flex-end}.product-placeholder-icon{font-size:70px}}
+
+/* Responsive storefront navigation, authentic deal/stock signals, and cart feedback */
+.marketplace-categories{padding:75px 5.5% 55px;background:#fff}
+.category-showcase{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.category-tile{border:1px solid #e1e3dc;background:linear-gradient(142deg,#f8f9f2,#eef2e7);border-radius:17px;min-height:200px;padding:20px 14px;text-align:left;display:flex;flex-direction:column;gap:7px;transition:transform .2s,box-shadow .2s}
+.category-tile:hover{transform:translateY(-5px);box-shadow:0 14px 24px #17233912}
+.category-tile-icon{font-size:62px;line-height:1.5}
+.category-tile strong{font:700 20px 'Space Grotesk',sans-serif}
+.category-tile small{font-size:10px;color:#626d77;font-weight:700}
+.category-tile-arrow{margin-top:auto;font-size:10px;letter-spacing:.08em;font-weight:800}
+.marketplace-deals{padding:65px 5.5%;background:#eef1e6}
+.deals-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}
+.deals-heading h2{font:700 clamp(30px,4vw,50px) 'Space Grotesk',sans-serif;letter-spacing:-.06em;margin:10px 0 0}
+.deals-heading p{font-size:12px;color:var(--muted)}
+.deal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.deal-card{display:flex;background:#fff;border:1px solid #dfe4d6;border-radius:15px;overflow:hidden;min-height:180px}
+.deal-image{width:42%;min-width:42%;background:#e5ebe1;overflow:hidden}
+.deal-image img{width:100%;height:100%;object-fit:cover}
+.deal-image .product-placeholder{min-height:180px;padding:6px}
+.deal-image .product-placeholder-icon{font-size:56px}
+.deal-details{padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.deal-details>small{text-transform:uppercase;color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.1em}
+.deal-details>strong{font:700 15px/1.25 'Space Grotesk',sans-serif}
+.deal-pricing{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.deal-pricing b{font-size:18px}.deal-pricing del,.price-stack del{color:#9aa1a3;font-size:11px}
+.deal-pricing span{font-size:10px;color:#237d4e;font-weight:800}
+.deal-add{border:0;border-radius:7px;background:var(--lime);padding:9px 12px;font-size:10px;font-weight:800;margin-top:auto}
+.price-stack{display:flex;flex-direction:column}
+.discount-label{position:absolute;right:12px;top:12px;color:#fff;background:#196a46;padding:6px 9px;border-radius:20px;font-size:10px;font-weight:800;z-index:2}
+.cart-nudge{position:fixed;z-index:50;bottom:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:13px;background:#172339;color:#fff;padding:12px 16px;border-radius:13px;box-shadow:0 12px 40px #1116;width:min(560px,calc(100% - 24px))}
+.cart-nudge[hidden],.bottom-nav [hidden]{display:none!important}
+.nudge-check{display:grid;place-items:center;background:#ddff59;color:#172339;border-radius:50%;width:28px;height:28px;min-width:28px;font-weight:900}
+.cart-nudge strong{font-size:12px;line-height:1.3;flex:1}
+.cart-nudge button{border:0;border-radius:7px;padding:9px 10px;background:var(--lime);color:var(--navy);font-size:10px;font-weight:800;white-space:nowrap}
+#nudgeContinueBtn{background:#ffffff20;color:#fff}
+.address-choice{border:1px solid #d9dfd7;background:#f7f8f4;border-radius:10px;width:100%;padding:13px;margin:5px 0;display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left}
+.address-choice:hover{border-color:#7c9f26;background:#f5fae9}
+.address-choice strong{font-size:12px}.address-choice span{font-size:12px;line-height:1.5;color:#415063}
+.address-choice small{color:#36602b;font-size:10px;font-weight:800}
+.account-overview{display:grid;gap:10px}.account-overview>div{display:flex;justify-content:space-between}.account-overview>div small{color:var(--muted)}
+.confirmation-summary{padding:15px;background:#f3f5ee;border-radius:9px;line-height:1.7;font-size:13px}
+.bottom-nav{display:none}
+@media(max-width:1100px){
+ .category-showcase{grid-template-columns:repeat(3,1fr)}
+ .deal-grid{grid-template-columns:repeat(2,1fr)}
+ .bottom-nav{position:fixed;z-index:25;bottom:0;left:0;width:100%;display:flex;justify-content:space-around;align-items:center;background:#fff;border-top:1px solid #e3e5df;padding:7px 8px max(8px,env(safe-area-inset-bottom));box-shadow:0 -6px 28px #17233912}
+ .bottom-nav button{position:relative;background:transparent;border:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-weight:800;color:#283349;padding:4px;min-width:50px}
+ .bottom-nav button span{font-size:25px;line-height:1.2}
+ #bottomCartCount{position:absolute;right:-5px;top:0;border-radius:20px;min-width:18px;background:var(--lime);padding:2px;color:#172339}
+ body{padding-bottom:76px}.cart-nudge{bottom:87px}.toast{bottom:155px}
+}
+@media(max-width:760px){
+ .marketplace-categories,.marketplace-deals{padding:45px 4%}
+ .category-showcase{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .category-tile{min-height:160px}.category-tile-icon{font-size:45px}.category-tile strong{font-size:16px}
+ .deal-grid{grid-template-columns:1fr}.deal-card{min-height:160px}
+ .deals-heading{flex-direction:column;align-items:flex-start}
+ .cart-nudge{gap:8px;padding:11px}.cart-nudge button{padding:8px 7px}
+}
