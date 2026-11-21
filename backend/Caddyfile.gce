@@ -1,0 +1,20 @@
+# Caddy automatically issues and renews HTTPS certificates for SITE_DOMAIN.
+# This host must have working public DNS and open TCP ports 80 and 443.
+{$SITE_DOMAIN} {
+  encode zstd gzip
+
+  # Internal Spring monitoring and debug UI must never be publicly exposed.
+  @internal path /actuator/* /swagger-ui* /v3/api-docs* /h2-console*
+  respond @internal 404
+
+  reverse_proxy frontend:80 {
+    header_up X-Forwarded-Proto https
+  }
+
+  header {
+    Strict-Transport-Security "max-age=15552000"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    -Server
+  }
+}
