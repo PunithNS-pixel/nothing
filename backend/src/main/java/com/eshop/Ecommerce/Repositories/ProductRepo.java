@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ProductRepo extends JpaRepository<Product,Long> , JpaSpecificationExecutor<Product> {
-    @jakarta.persistence.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select p from Product p where p.productId=:id")
     java.util.Optional<Product> findByIdForInventoryUpdate(@org.springframework.data.repository.query.Param("id") Long id);
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
