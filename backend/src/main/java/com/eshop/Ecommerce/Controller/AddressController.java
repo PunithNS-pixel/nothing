@@ -35,6 +35,8 @@ public class AddressController {
 
     @PostMapping("/addresses")
     public ResponseEntity<AddressDTO> createAddress(@Valid @RequestBody AddressDTO addressDTO){
+        if((addressDTO.getLatitude()==null)!=(addressDTO.getLongitude()==null))
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST,"Coordinates must be provided together");
         User user = authUtil.loggedInUser();
         AddressDTO savedAddressDTO = addressService.createAddress(addressDTO, user);
         return new ResponseEntity<>(savedAddressDTO, HttpStatus.CREATED);
@@ -65,6 +67,8 @@ public class AddressController {
     public ResponseEntity<AddressDTO> updateAddress(@PathVariable Long addressId
             , @RequestBody AddressDTO addressDTO){
         requireAddressOwner(addressId);
+        if((addressDTO.getLatitude()==null)!=(addressDTO.getLongitude()==null))
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST,"Coordinates must be provided together");
         AddressDTO updatedAddress = addressService.updateAddress(addressId, addressDTO);
         return new ResponseEntity<>(updatedAddress, HttpStatus.OK);
     }
