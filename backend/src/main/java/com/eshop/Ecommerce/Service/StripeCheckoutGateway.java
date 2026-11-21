@@ -27,17 +27,18 @@ public class StripeCheckoutGateway {
  private final StripeCheckoutAttemptRepository attempts;
  private final AuthUtil auth;
  private final OrderService orders;
+ private final CartOfferService offerPricing;
  private final String key,webhookSecret,successUrl,cancelUrl;
  private final ObjectMapper json;
 
  public StripeCheckoutGateway(CartRepository carts,AddressRepository addresses,
-  StripeCheckoutAttemptRepository attempts,AuthUtil auth,OrderService orders,ObjectMapper json,
+  StripeCheckoutAttemptRepository attempts,AuthUtil auth,OrderService orders,CartOfferService offerPricing,ObjectMapper json,
   @Value("${stripe.secret.key:}") String key,
   @Value("${stripe.webhook.secret:}") String webhookSecret,
   @Value("${stripe.success.url}") String successUrl,
   @Value("${stripe.cancel.url}") String cancelUrl){
   this.carts=carts;this.addresses=addresses;this.attempts=attempts;
-  this.auth=auth;this.orders=orders;this.json=json;
+  this.auth=auth;this.orders=orders;this.offerPricing=offerPricing;this.json=json;
   this.key=key;this.webhookSecret=webhookSecret;this.successUrl=successUrl;this.cancelUrl=cancelUrl;
  }
 
@@ -52,6 +53,10 @@ public class StripeCheckoutGateway {
   return items.stream().sorted(Comparator.comparing(i->i.getProduct().getProductId()))
    .map(i->i.getProduct().getProductId()+":"+i.getQuantity()+":"+cents(i.getProductPrice()))
    .reduce("",(a,b)->a+b+";");
+ }
+
+ private static String quotedFingerprint(List<CartItem> items,CartOfferService.Quote quote){
+  return fingerprint(items)+(quote.applied()?"offer:"+quote.code()+":"+CartOfferService.paise(quote.discount())+";":"");
  }
 
  public record CheckoutLink(String url,String sessionId){}
@@ -72,6 +77,8 @@ public class StripeCheckoutGateway {
   if(cart==null||cart.getCartItems().isEmpty())
    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Cart is empty");
   List<CartItem> items=new ArrayList<>(cart.getCartItems());
+  CartOfferService.Quote quote=offerPricing.quote(cart,buyer.getEmail(),true);
+  boolean discounted=quote.applied()&&quote.discount()>0;
   SessionCreateParams.Builder builder=SessionCreateParams.builder()
       .setMode(SessionCreateParams.Mode.PAYMENT)
       .setSuccessUrl(successUrl+(successUrl.contains("?")?"&":"?")+"session_id={CHECKOUT_SESSION_ID}")
@@ -87,7 +94,7 @@ public class StripeCheckoutGateway {
    long unit=cents(item.getProductPrice());
    if(unit<1)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid product price");
    total=Math.addExact(total,Math.multiplyExact(unit,item.getQuantity()));
-   builder.addLineItem(SessionCreateParams.LineItem.builder()
+   if(!discounted)builder.addLineItem(SessionCreateParams.LineItem.builder()
     .setQuantity(item.getQuantity().longValue())
     .setPriceData(SessionCreateParams.LineItem.PriceData.builder()
        .setCurrency("inr").setUnitAmount(unit)
@@ -96,10 +103,30 @@ public class StripeCheckoutGateway {
             (item.getProduct().getVariantLabel()==null?"":" — "+item.getProduct().getVariantLabel())).build())
        .build()).build());
   }
+  if(discounted){
+   // Stripe Checkout charges the verified final order amount. A single order
+   // summary item avoids fractional-paise unit allocation across mixed quantities.
+   // Product line items remain independently recorded in PostgreSQL.
+   total=quote.totalPaise();
+   if(total<100)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+      "Discounted order total is too small for online payment; choose COD");
+   builder.addLineItem(SessionCreateParams.LineItem.builder()
+     .setQuantity(1L)
+     .setPriceData(SessionCreateParams.LineItem.PriceData.builder()
+       .setCurrency("inr").setUnitAmount(total)
+       .setProductData(SessionCreateParams.LineItem.PriceData.ProductData.builder()
+         .setName("NOTHING Market order — "+quote.code()+" offer applied").build())
+       .build()).build());
+  } else if(total!=quote.totalPaise()) {
+    throw new ResponseStatusException(HttpStatus.CONFLICT,"Basket totals changed; refresh the cart");
+  }
   StripeCheckoutAttempt attempt=new StripeCheckoutAttempt();
   attempt.setId(UUID.randomUUID().toString());
   attempt.setEmail(buyer.getEmail());attempt.setAddressId(addressId);
-  attempt.setExpectedAmount(total);attempt.setCartFingerprint(fingerprint(items));
+  attempt.setExpectedAmount(total);
+  attempt.setCartFingerprint(quotedFingerprint(items,quote));
+  attempt.setOfferCode(quote.applied()?quote.code():null);
+  attempt.setDiscountPaise(CartOfferService.paise(quote.discount()));
   attempts.saveAndFlush(attempt);
   builder.putMetadata("checkoutAttemptId",attempt.getId());
   // Never pass the client a mutable amount or a secret key.
@@ -140,8 +167,11 @@ public class StripeCheckoutGateway {
   if(session.path("amount_total").asLong(-1)!=attempt.getExpectedAmount())
    throw new IllegalArgumentException("Stripe payment amount mismatch");
   Cart cart=carts.findCartByEmail(attempt.getEmail());
-  if(cart==null||!fingerprint(new ArrayList<>(cart.getCartItems())).equals(attempt.getCartFingerprint()))
-    throw new IllegalStateException("Customer cart changed after checkout. Requires manual payment reconciliation.");
+  if(cart==null)throw new IllegalStateException("Customer cart was removed; requires manual payment reconciliation.");
+  CartOfferService.Quote current=offerPricing.quote(cart,attempt.getEmail(),true);
+  if(current.totalPaise()!=attempt.getExpectedAmount()||
+      !quotedFingerprint(new ArrayList<>(cart.getCartItems()),current).equals(attempt.getCartFingerprint()))
+    throw new IllegalStateException("Cart or offer changed after payment; requires manual payment reconciliation.");
   // OrderService reserves stock atomically and commits Kafka outbox events
   // within the same transaction as marking the attempt completed.
   OrderDTO order=orders.placeVerifiedStripeOrder(attempt.getEmail(),attempt.getAddressId(),id);

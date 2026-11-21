@@ -96,6 +96,10 @@ public class OrderServiceImpl implements OrderService {
         // Calculate server-authoritative subtotal and coupon from persisted cart items.
         CartOfferService.Quote quote=offerPricing.quote(cart,emailId,true);
         if(quote.total()<=0)throw new APIException("Cannot place a zero-value order");
+        // Global/per-customer limits are checked before inserting this new order,
+        // avoiding counting the current transaction's own order as a prior redemption.
+        // Any subsequent stock failure rolls back the coupon counter as well.
+        offerPricing.redeem(quote,emailId,cart);
         Order order = new Order();
         order.setEmail(emailId);
         order.setOrderDate(LocalDate.now());
@@ -150,9 +154,7 @@ public class OrderServiceImpl implements OrderService {
             cartService.deleteProductFromCart(cart.getCartId(), item.getProduct().getProductId());
         });
 
-        // Redeem under a pessimistic offer row lock, in the SAME transaction as
-        // stock reservation, order insertion and Kafka outbox events.
-        offerPricing.redeem(quote,emailId,cart);
+        // The cart is now empty; coupon redemption happened before order persistence.
         cart.setCouponCode(null);
         cartRepository.save(cart);
 
