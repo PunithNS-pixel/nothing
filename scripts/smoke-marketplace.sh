@@ -28,8 +28,13 @@ print("CATALOG PASS", len(rows),"stock-bearing SKUs,",len(brands),"brands,",len(
   sleep 4
 done
 printf '\n[3/8] HTML and JS served\n'
-curl -fsS "$BASE/" | grep -q 'NOTHING MARKET'
-curl -fsS "$BASE/app.js" | grep -q 'brandFilter'
+HTML_FILE="$(mktemp)"
+JS_FILE="$(mktemp)"
+trap 'rm -f "$HTML_FILE" "$JS_FILE"' EXIT
+curl -fsS "$BASE/" -o "$HTML_FILE"
+curl -fsS "$BASE/app.js" -o "$JS_FILE"
+grep -q 'NOTHING MARKET' "$HTML_FILE"
+grep -q 'brandFilter' "$JS_FILE"
 printf 'STOREFRONT PASS\n'
 printf '\n[4/8] OpenSearch indexing and brand search\n'
 for attempt in $(seq 1 40); do
