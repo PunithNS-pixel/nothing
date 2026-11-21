@@ -592,49 +592,229 @@ async function showAccountOverview(){
   root.append(section);d.showModal();
  }catch(e){notify('Account details unavailable: '+e.message,true)}
 }
-async function checkout(){
- let checkoutStage='checking account';
- if(cartBusy)return;
- if(!Object.values(cart).some(n=>n>0)){notify('Add a product first.',true);return}
- // Check the server, not a remembered username in frontend state.
- const session=await verifySession();
- if(!session){
-  user=null;syncAccountButtons();
-  closeCart();
-  if(!await login())return;
- }
- try{
-  checkoutStage='verifying email ownership';
-  await ensureVerifiedEmail();
-  checkoutStage='saving shopping bag';
-  await persistCart();
-  checkoutStage='selecting verified delivery details';
-  const address=await selectDeliveryAddress();
-  if(!address)return;
-  const total=Object.entries(cart).reduce((n,[id,q])=>n+(productById(id)?itemPrice(productById(id)):0)*q,0);
-  const method=await choosePaymentMethod(total);
-  if(!method)return;
-  if(method==='STRIPE'){
-   checkoutStage='starting Stripe hosted checkout';
-   const session=await request('/api/checkout/stripe/session',{method:'POST',
-     body:JSON.stringify({addressId:address.addressId})});
-   if(!session.url||!/^https:\/\/checkout\.stripe\.com\//.test(session.url))
-    throw new Error('Stripe did not provide a valid hosted payment URL');
-   window.location.assign(session.url);return;
-  }
-  const confirm=await confirmAction('CONFIRM CASH ON DELIVERY',
-   'Total '+money(total)+' · Payment collected upon delivery. Deliver to: '+addressSummary(address),
-   'PLACE COD ORDER');
-  if(!confirm)return;
-  checkoutStage='placing cash-on-delivery order';
-  const order=await request('/api/order/users/payments/COD',{method:'POST',body:JSON.stringify({addressId:address.addressId,pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Cash on delivery'})});
-  cart={};saveGuest();updateCart();closeCart();
-  notify('Order #'+order.orderId+' placed successfully! Payment on delivery.');
-  // Refresh is best effort: do not misreport a committed order as failed.
-  try{await loadCatalog()}catch(e){console.warn('Catalog refresh after order:',e)}
-  await showOrders();
- }catch(e){notify('Checkout failed while '+checkoutStage+': '+e.message,true);console.error('Checkout stage:',checkoutStage,'Error:',e)}
+
+function checkoutSummary(){
+ const entries=Object.entries(cart).filter(([id,q])=>Number(q)>0&&productById(id))
+  .map(([id,q])=>({id,product:productById(id),quantity:Number(q)}));
+ const subtotal=entries.reduce((total,x)=>total+itemPrice(x.product)*x.quantity,0);
+ const regular=entries.reduce((total,x)=>total+Number(x.product.originalPrice||x.product.price)*x.quantity,0);
+ return {entries,subtotal,savings:Math.max(0,regular-subtotal),
+   count:entries.reduce((n,x)=>n+x.quantity,0)};
 }
+function checkoutItemPhoto(product,id){
+ return product.image&&/^https:\/\//.test(product.image)
+  ?'<img loading="lazy" data-product-image="'+escape(id)+'" src="'+escape(product.image)+'" alt="'+escape(product.name)+'">'
+  :productArtwork(product);
+}
+function checkoutStepper(stage){
+ const names=['Address','Confirm details','Payment'];
+ return '<div class="checkout-stepper" aria-label="Checkout progress">'+names.map((name,i)=>
+  '<div class="checkout-step '+(stage===i?'is-current':stage>i?'is-complete':'')+'" '+(stage===i?'aria-current="step"':'')+'><span>'+(i<stage?'✓':i+1)+'</span><small>'+name+'</small></div>'
+ ).join('')+'</div>';
+}
+function checkoutPriceDetails(summary){
+ return '<section class="checkout-prices"><h3>PRICE DETAILS</h3>'+
+  '<div><span>Price ('+summary.count+' item'+(summary.count===1?'':'s')+')</span><strong>'+money(summary.subtotal)+'</strong></div>'+
+  (summary.savings>0?'<div class="checkout-savings"><span>You save</span><strong>'+money(summary.savings)+'</strong></div>':'')+
+  '<div class="checkout-final-total"><span>Amount payable</span><strong>'+money(summary.subtotal)+'</strong></div>'+
+  '<p>Final stock and prices are confirmed by the backend. No unverified delivery date or fee is promised.</p></section>';
+}
+function showCheckoutWizard(){
+ return new Promise(async resolve=>{
+  const dialog=$('checkoutDialog'),root=$('checkoutContent');
+  let stage=0,addresses=[],address=null,payment='COD',stripeReady=false,processing=false,finished=false,error='';
+  const close=()=>{
+   if(processing)return;
+   if(dialog.open)dialog.close();
+   resolve();
+  };
+  dialog.oncancel=e=>{e.preventDefault();close()};
+  const checkoutAction=async()=>{
+   if(processing||finished||!address)return;
+   processing=true;error='';paint();
+   try{
+    await persistCart();
+    if(payment==='STRIPE'){
+     const result=await request('/api/checkout/stripe/session',{
+      method:'POST',body:JSON.stringify({addressId:address.addressId})
+     });
+     if(!result.url||!/^https:\/\/checkout\.stripe\.com\//.test(result.url))
+      throw new Error('Secure Stripe checkout URL unavailable');
+     window.location.assign(result.url);
+     return;
+    }
+    const result=await request('/api/order/users/payments/COD',{
+     method:'POST',body:JSON.stringify({addressId:address.addressId,
+      pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Pay on delivery'})
+    });
+    if(!result.orderId)throw new Error('Order confirmation was not returned. Check ORDERS before trying again.');
+    finished=true;processing=false;cart={};saveGuest();updateCart();closeCart();
+    error='';
+    root.innerHTML='<div class="checkout-success"><span class="checkout-success-icon">✓</span>'+
+     '<h2>ORDER PLACED!</h2><p>Order #'+escape(result.orderId)+' has been confirmed.</p>'+
+     '<div class="success-meta"><strong>'+money(result.totalAmount)+'</strong><span>Cash on Delivery · Pay when your order arrives</span></div>'+
+     '<p>We have not assigned a delivery date yet. View your order history for updates.</p>'+
+     '<button type="button" id="wizardOrders" class="checkout-main-action">VIEW MY ORDERS ↗</button>'+
+     '<button type="button" id="wizardShop" class="checkout-text-action">CONTINUE SHOPPING</button></div>';
+    $('wizardOrders').onclick=()=>{dialog.close();resolve();showOrders()};
+    $('wizardShop').onclick=()=>{dialog.close();resolve();document.querySelector('#catalog').scrollIntoView({behavior:'smooth'})};
+    loadCatalog().catch(e=>console.warn('Catalog refresh after COD:',e));
+    return;
+   }catch(e){
+    error='Order not submitted: '+e.message;
+    processing=false;
+    paint();
+    notify('Check your order status before retrying if payment or network response is uncertain.',true);
+   }
+  };
+  const editFromWizard=async existing=>{
+   if(processing)return;
+   const saved=await editAddress(existing||null);
+   if(!saved)return;
+   addresses=await request('/api/users/addresses');
+   address=addresses.find(a=>String(a.addressId)===String(saved.addressId))||saved;
+   error='';paint();
+  };
+  const paint=()=>{
+   if(!dialog.open)return;
+   const sum=checkoutSummary();
+   const header='<header class="checkout-heading"><div><span class="eyebrow">NOTHING MARKET · SECURE CHECKOUT</span>'+
+    '<h2>'+(stage===0?'Delivery address':stage===1?'Confirm details':'Select payment')+'</h2></div>'+
+    '<button type="button" id="wizardClose" class="checkout-dismiss" aria-label="Close checkout">✕</button></header>'+
+    checkoutStepper(stage);
+   let content='';
+   if(stage===0){
+    content='<div class="checkout-content-grid"><section class="checkout-panel"><h3>Where should we deliver?</h3>'+
+     '<p class="checkout-hint">Select a complete address or add your delivery details.</p>'+
+     (addresses.length?'<div class="checkout-addresses">'+addresses.map(a=>
+      '<div class="checkout-address-tile '+(address&&String(a.addressId)===String(address.addressId)?'chosen':'')+'">'+
+      '<label><input type="radio" name="deliveryAddress" value="'+escape(a.addressId)+'" '+(address&&String(a.addressId)===String(address.addressId)?'checked':'')+
+      (!completeAddress(a)?' disabled':'')+'><span><strong>'+escape(a.recipientName||a.addressLabel||'Saved address')+'</strong>'+
+      '<small>'+escape([a.buildingName,a.street,a.city,a.state,a.pincode].filter(Boolean).join(', '))+'</small>'+
+      '<small>☎ '+escape(a.phoneNumber||'Mobile number missing')+'</small></span></label>'+
+      '<button type="button" class="checkout-inline-action" data-wizard-edit="'+escape(a.addressId)+'">'+(completeAddress(a)?'EDIT':'COMPLETE DETAILS')+'</button></div>'
+     ).join('')+'</div>':'<p class="checkout-empty-address">No saved addresses yet.</p>')+
+     '<button id="wizardAddAddress" type="button" class="checkout-add-address">＋ ADD NEW ADDRESS</button></section>'+
+     checkoutPriceDetails(sum)+'</div>';
+   }else if(stage===1){
+    content='<div class="checkout-content-grid"><div><section class="checkout-delivery-summary">'+
+      '<h3>DELIVERING TO <button type="button" id="wizardChangeAddress">CHANGE</button></h3>'+
+      '<strong>📍 '+escape(address.recipientName||'')+'</strong>'+
+      '<p>'+escape([address.buildingName,address.street,address.landmark,address.city,address.state,address.pincode,address.country].filter(Boolean).join(', '))+'</p>'+
+      '<p>☎ '+escape(address.phoneNumber||'')+'</p></section>'+
+      '<section class="checkout-panel checkout-order-lines"><h3>ORDER SUMMARY · '+sum.count+' ITEM'+(sum.count===1?'':'S')+'</h3>'+
+      sum.entries.map(x=>{
+        const variant=variantOf(x.product);
+        return '<div class="checkout-order-line"><div class="checkout-line-photo">'+checkoutItemPhoto(x.product,x.id)+'</div>'+
+         '<div class="checkout-line-detail"><strong>'+escape(variant?variant.base:x.product.name)+'</strong>'+
+         '<small>'+escape(x.product.category)+(variant?' · Size '+escape(variant.size):'')+'</small>'+
+         '<small>Available stock: '+escape(x.product.stock)+'</small>'+
+         '<div class="checkout-line-qty"><button type="button" data-wizard-qty="'+escape(x.id)+'" data-delta="-1" aria-label="Remove one">−</button>'+
+         '<b>'+x.quantity+'</b><button type="button" data-wizard-qty="'+escape(x.id)+'" data-delta="1" aria-label="Add one">+</button></div></div>'+
+         '<strong class="checkout-line-price">'+money(itemPrice(x.product)*x.quantity)+'</strong></div>';
+      }).join('')+'</section><p class="checkout-promise">✓ Stock is checked again when you place the order. Delivery timing depends on fulfilment.</p></div>'+
+      checkoutPriceDetails(sum)+'</div>';
+   }else{
+    content='<div class="checkout-content-grid"><div><section class="checkout-delivery-summary">'+
+      '<h3>DELIVERING TO <button type="button" id="wizardChangeAddress">CHANGE</button></h3>'+
+      '<strong>📍 '+escape(address.recipientName||'')+'</strong><p>'+escape([address.buildingName,address.street,address.city,address.state,address.pincode].filter(Boolean).join(', '))+'</p>'+
+      '<p>☎ '+escape(address.phoneNumber||'')+'</p></section>'+
+      '<section class="checkout-panel"><h3>CHOOSE PAYMENT METHOD</h3>'+
+      '<label class="checkout-pay-option '+(payment==='COD'?'chosen':'')+'"><input type="radio" name="checkoutPayment" value="COD" '+(payment==='COD'?'checked':'')+'>'+
+      '<span class="pay-icon">₹</span><span><strong>CASH ON DELIVERY</strong><small>Pay when your order is delivered. No advance payment.</small></span></label>'+
+      '<label class="checkout-pay-option '+(payment==='STRIPE'?'chosen':'')+'"><input type="radio" name="checkoutPayment" value="STRIPE" '+(payment==='STRIPE'?'checked':'')+
+      (!stripeReady?' disabled':'')+'><span class="pay-icon">▣</span><span><strong>PAY ONLINE WITH STRIPE</strong>'+
+      '<small>'+(stripeReady?'Secure card payment in Stripe hosted Checkout.':'Stripe test payment is not configured yet.')+'</small></span></label>'+
+      '<p class="checkout-promise">🔒 Card numbers are entered only on Stripe, not stored by Nothing Market.</p></section></div>'+
+      checkoutPriceDetails(sum)+'</div>';
+   }
+   const footer= '<footer class="checkout-sticky-footer">'+
+    '<div><small>'+(sum.savings>0?'YOU SAVE '+money(sum.savings):sum.count+' ITEM'+(sum.count===1?'':'S'))+'</small>'+
+    '<strong>'+money(sum.subtotal)+'</strong></div>'+
+    '<div class="checkout-footer-controls">'+(stage>0?'<button type="button" id="wizardBack" class="checkout-back-action">BACK</button>':'')+
+    '<button type="button" id="wizardNext" class="checkout-main-action" '+(processing||sum.count===0?'disabled':'')+'>'+
+    (processing?'PROCESSING…':stage===0?'CONTINUE TO REVIEW ↗':stage===1?'CONTINUE TO PAYMENT ↗':
+    payment==='COD'?'PLACE COD ORDER ↗':'PROCEED TO STRIPE ↗')+'</button></div></footer>';
+   root.innerHTML=header+'<div class="checkout-stage-body">'+content+
+    (error?'<p class="checkout-error" role="alert">'+escape(error)+'</p>':'')+'</div>'+footer;
+   $('wizardClose').onclick=close;
+   const back=$('wizardBack');
+   if(back)back.onclick=()=>{if(!processing){stage--;error='';paint()}};
+   const next=$('wizardNext');
+   next.onclick=async()=>{
+    if(processing)return;
+    error='';
+    if(stage===0){
+     if(!address||!completeAddress(address)){
+      error='Select a complete address with a name, mobile number and PIN.';paint();return;
+     }
+     stage=1;paint();return;
+    }
+    if(stage===1){
+     if(!checkoutSummary().count){error='Your cart is empty';paint();return}
+     stage=2;paint();return;
+    }
+    await checkoutAction();
+   };
+   if(stage===0){
+    root.querySelectorAll('input[name="deliveryAddress"]').forEach(input=>input.onchange=()=>{
+      address=addresses.find(a=>String(a.addressId)===input.value)||null;error='';paint();
+    });
+    root.querySelectorAll('[data-wizard-edit]').forEach(b=>b.onclick=()=>{
+      editFromWizard(addresses.find(a=>String(a.addressId)===b.dataset.wizardEdit));
+    });
+    $('wizardAddAddress').onclick=()=>editFromWizard(null);
+   }else{
+    const change=$('wizardChangeAddress');
+    if(change)change.onclick=()=>{if(!processing){stage=0;error='';paint()}};
+   }
+   if(stage===1){
+    root.querySelectorAll('[data-wizard-qty]').forEach(b=>b.onclick=async()=>{
+      if(processing)return;
+      processing=true;
+      root.querySelectorAll('button').forEach(b=>b.disabled=true);
+      const ok=await changeQty(b.dataset.wizardQty,Number(b.dataset.delta));
+      processing=false;error='';
+      if(!checkoutSummary().count){closeCart();close();notify('Your bag is empty. Add something to continue.',true);return}
+      if(!ok)error='Could not update quantity; stock or cart synchronization may have changed.';
+      paint();
+    });
+   }
+   if(stage===2)root.querySelectorAll('input[name="checkoutPayment"]').forEach(input=>input.onchange=()=>{
+    if(!processing){payment=input.value;paint()}
+   });
+   bindImageFallbacks(root);
+   if(processing)root.querySelectorAll('button,input').forEach(el=>el.disabled=true);
+  };
+  try{
+   addresses=await request('/api/users/addresses');
+   if(!Array.isArray(addresses))addresses=[];
+   address=addresses.find(completeAddress)||null;
+   try{
+    const config=await request('/api/checkout/stripe/config');
+    stripeReady=config.enabled===true;
+   }catch{stripeReady=false}
+   dialog.showModal();paint();
+  }catch(e){notify('Could not start checkout: '+e.message,true);resolve()}
+ });
+}
+async function checkout(){
+ if(cartBusy)return;
+ if(!checkoutSummary().count){notify('Add a product before checking out.',true);return}
+ try{
+  const current=await verifySession();
+  if(!current){
+   user=null;syncAccountButtons();closeCart();
+   if(!await login('LOGIN'))return;
+  }
+  await ensureVerifiedEmail();
+  await persistCart();
+  closeCart();
+  await showCheckoutWizard();
+ }catch(e){notify('Checkout could not start: '+e.message,true)}
+}
+
+
 function bind(){
  $('year').textContent=new Date().getFullYear();
  $('cartBtn').onclick=openCart;
