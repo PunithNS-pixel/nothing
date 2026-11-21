@@ -113,6 +113,18 @@ jobs:
           docker compose -f backend/compose.aiven.ha.yml config --quiet
           python3 -m py_compile backend/scripts/validate-ha-env.py
           bash -n scripts/verify-round-robin.sh
+
+      - name: Validate public GCE demo config and Mac deploy tooling
+        env:
+          LOCAL_DB_PASSWORD: ci-gce-placeholder-not-production
+          RABBITMQ_PASSWORD: ci-gce-placeholder-not-production
+          JWT_SECRET: Y2ktdGVzdC1rZXktb25seS1mb3Itbm90aGluZy1iYWNrZW5kLTEyMzQ1Njc4OTA=
+          SITE_DOMAIN: example.invalid
+        run: |
+          docker compose -f backend/compose.gce.yml config --quiet
+          bash -n scripts/deploy-gce.sh scripts/bootstrap-gce-vm.sh
+          python3 -m py_compile scripts/prepare-gce-env.py
+          python3 -m unittest discover -s scripts -p 'test_prepare_gce_env.py' -v
       - name: Maven compile and tests
         working-directory: backend
         run: mvn -B clean verify

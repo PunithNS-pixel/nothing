@@ -281,3 +281,11 @@ The server now writes a **durable order email job** with each successful checkou
 ## Google Cloud Gmail API for confirmation and OTP emails
 
 You can choose the Google Cloud OAuth-powered Gmail API sender instead of SMTP. The existing transactional email queue, database retry state and HTML receipt still apply. Follow the [Google Cloud setup and macOS OAuth script](docs/GOOGLE_CLOUD_GMAIL_API.md). Real sending requires your own Gmail/Workspace account and OAuth consent; source code contains no credentials.
+
+## Deploy a Google Cloud HTTPS demo
+
+For a public, single-VM Compute Engine deployment of the full Docker marketplace,
+use [Google Cloud deployment: macOS one-command setup, costs, HTTPS, safety and backups](docs/DEPLOY_GOOGLE_CLOUD.md).
+Cloud billing, project permissions, Google Cloud CLI login and private deployment
+credentials require action from the project owner; the code alone cannot create
+resources in a Google account. Do not deploy this demo as a real-money production shop.
