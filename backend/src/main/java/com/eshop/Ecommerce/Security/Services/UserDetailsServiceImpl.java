@@ -21,8 +21,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // Customers can sign in using their email or their established username.
+        // This still requires the matching BCrypt password; unknown emails never authenticate.
         User user = userRepository.findByUserName(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User Not Found with username: " + username));
+                .or(() -> userRepository.findByEmailIgnoreCase(username))
+                .orElseThrow(() -> new UsernameNotFoundException("Invalid email/username or password"));
         return UserDetailsImpl.build(user);
     }
 

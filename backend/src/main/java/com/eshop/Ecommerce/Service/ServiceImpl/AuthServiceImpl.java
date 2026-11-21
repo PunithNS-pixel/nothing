@@ -93,6 +93,8 @@ public class AuthServiceImpl implements AuthService {
     //sign in
     @Override
     public ResponseEntity<MessageResponse> register(SignupRequest signUpRequest) {
+        signUpRequest.setEmail(signUpRequest.getEmail().trim().toLowerCase(java.util.Locale.ROOT));
+        signUpRequest.setUsername(signUpRequest.getUsername().trim());
         if (userRepository.existsByUserName(signUpRequest.getUsername())) {
             return ResponseEntity.badRequest().body(new MessageResponse("Error: Username is already taken!"));
         }

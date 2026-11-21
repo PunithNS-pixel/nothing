@@ -69,6 +69,14 @@ class EmailVerificationRegistrationTest {
     .content(mapper.writeValueAsString(registration))).andExpect(status().isOk());
   User stored=users.findByEmailIgnoreCase(email).orElseThrow();
   assertTrue(stored.isEmailVerified(),"Verified inbox ownership should be persisted");
+  // Verified email + wrong password must never authenticate.
+  mvc.perform(post("/api/auth/signin").contentType(MediaType.APPLICATION_JSON)
+    .content(mapper.writeValueAsString(Map.of("username",email,"password","WrongPassword!2026"))))
+    .andExpect(status().isUnauthorized());
+  // Signing in via the verified email requires the correct password.
+  mvc.perform(post("/api/auth/signin").contentType(MediaType.APPLICATION_JSON)
+    .content(mapper.writeValueAsString(Map.of("username",email,"password","LongSamplePassword!2026"))))
+    .andExpect(status().isOk());
   // A consumed proof cannot activate any other signup, even with a new username.
   mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
     .content(mapper.writeValueAsString(Map.of("username",name+"2","email",email,
