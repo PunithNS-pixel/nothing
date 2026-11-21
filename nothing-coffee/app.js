@@ -4,6 +4,7 @@ const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(n)||0);
 // All authenticated API traffic goes through this storefront's Nginx /api proxy.
 const API='';
+let savedWishlist=new Set();
 let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0,searchRequestSeq=0,searchDebounce;
 const productById=id=>catalog.find(p=>String(p.productId)===String(id));
 const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
@@ -176,6 +177,7 @@ function drawProducts(){
   if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" decoding="async" src="'+escape(p.image)+'" alt="'+escape(p.variantGroup||p.name)+' — illustrative photography">';
   const action=stock<1?'SOLD OUT':sized?'CHOOSE SIZE ↗':'ADD TO BAG +';
   return '<article class="product-card"><div class="product-visual" style="--tone:'+(tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'● '+stock+' IN STOCK':'SOLD OUT')+'</span>'+image+
+   '<button type="button" class="wishlist-save" data-wish="'+safeId+'" aria-label="Save to wishlist" aria-pressed="'+savedWishlist.has(safeId)+'">'+(savedWishlist.has(safeId)?'♥':'♡')+'</button>'+
    '<button type="button" class="quick-view" data-quick="'+safeId+'" aria-label="Quick view '+escape(p.variantGroup||p.name)+'">QUICK VIEW ↗</button></div><div class="product-info"><div class="brand-tag">'+escape(p.brand||'NOTHING SELECT')+'</div><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.variantGroup||p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+action+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
@@ -184,6 +186,7 @@ function drawProducts(){
   else addItem(b.dataset.add);
  });
  document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>showQuickView(b.dataset.quick));
+ document.querySelectorAll('[data-wish]').forEach(b=>b.onclick=()=>toggleWishlist(Number(b.dataset.wish)));
 }
 async function applyFilters(){
  const sequence=++searchRequestSeq;
@@ -324,7 +327,7 @@ async function loadSession(){
  syncAccountButtons();
  $('adminRetailersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  $('adminOrdersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
- await loadRetailerStatus();await applyFilters();await loadServerCart();
+ await loadRetailerStatus();await refreshWishlist();await applyFilters();await loadServerCart();
 }
 function showDialog(title,fields,button='CONTINUE'){
  return new Promise(resolve=>{
@@ -577,6 +580,71 @@ async function showFulfillmentPanel(){
   close.onclick=()=>d.close();root.append(close);d.showModal();
  }catch(e){notify('Staff order dashboard unavailable: '+e.message,true)}
 }
+async function refreshWishlist(){
+ savedWishlist.clear();
+ if(!user)return;
+ try{
+  const data=await request('/api/wishlist');
+  for(const item of data)savedWishlist.add(Number(item.productId));
+ }catch(e){console.warn('Wishlist not yet available:',e.message)}
+}
+async function toggleWishlist(productId){
+ if(!user){notify('Sign in to save products',true);await login();if(!user)return}
+ const wasSaved=savedWishlist.has(productId);
+ try{
+  await request('/api/wishlist/'+productId,{method:wasSaved?'DELETE':'POST'});
+  if(wasSaved)savedWishlist.delete(productId);else savedWishlist.add(productId);
+  document.querySelectorAll('[data-wish="'+productId+'"]').forEach(b=>{
+   b.textContent=wasSaved?'♡':'♥';b.setAttribute('aria-pressed',String(!wasSaved))
+  });
+  notify(wasSaved?'Removed from wishlist':'Saved to wishlist');
+ }catch(e){notify('Wishlist: '+e.message,true)}
+}
+async function showWishlist(){
+ if(!user){await login();if(!user)return}
+ try{
+  const items=await request('/api/wishlist');
+  const dialog=$('modal'),root=$('modalContent');
+  if(dialog.open)dialog.close();root.replaceChildren();
+  const title=document.createElement('h2');title.textContent='YOUR WISHLIST';root.append(title);
+  if(!items.length){const p=document.createElement('p');p.textContent='Products you save will appear here.';root.append(p)}
+  for(const item of items){
+   const row=document.createElement('div');row.className='tracking-order-card';
+   const name=document.createElement('strong');name.textContent=item.name;
+   const info=document.createElement('p');info.textContent=money(item.price)+' · '+(item.stock>0?'In stock':'Out of stock');
+   const remove=document.createElement('button');remove.type='button';remove.className='track-order-button';remove.textContent='REMOVE ♡';
+   remove.onclick=async()=>{await toggleWishlist(item.productId);row.remove()};
+   row.append(name,info,remove);root.append(row);
+  }
+  const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>dialog.close();root.append(close);
+  dialog.showModal();
+ }catch(e){notify('Could not open wishlist: '+e.message,true)}
+}
+async function rescheduleDelivery(orderId){
+ const choice=await showDialog('REQUEST A DELIVERY DATE',[{name:'preferredDate',label:'Preferred delivery date (YYYY-MM-DD)',placeholder:'2026-12-01'}],'REQUEST DATE');
+ if(!choice)return;
+ if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(choice.preferredDate)){notify('Use YYYY-MM-DD format',true);return}
+ try{
+  const result=await request('/api/customer/orders/'+orderId+'/delivery-date',{
+   method:'PATCH',body:JSON.stringify({preferredDate:choice.preferredDate})
+  });
+  notify(result.message||'Delivery date request saved');
+ }catch(e){notify('Delivery date: '+e.message,true)}
+}
+async function reviewPurchase(productId){
+ const result=await showDialog('REVIEW YOUR PURCHASE',[
+  {name:'rating',label:'Rating from 1 to 5',placeholder:'5'},
+  {name:'comment',label:'Your feedback'}
+ ],'POST REVIEW');
+ if(!result)return;
+ const rating=Number(result.rating);
+ if(!Number.isInteger(rating)||rating<1||rating>5){notify('Rating must be between 1 and 5',true);return}
+ try{
+  await request('/api/customer/feedback/'+productId,{method:'PUT',
+   body:JSON.stringify({rating,comment:result.comment})});
+  notify('Thank you — your review is saved');
+ }catch(e){notify('Review: '+e.message,true)}
+}
 async function showOrders(){
  if(!user){if(!await login())return}
  try{
@@ -599,7 +667,20 @@ async function showOrders(){
    }
    const track=document.createElement('button');track.type='button';track.className='track-order-button';
    track.textContent='TRACK YOUR ORDER ↗';track.onclick=()=>{d.close();showTracking(o.orderId)};
-   row.append(track);root.append(row);
+   row.append(track);
+   if(['PLACED','ACCEPTED','CONFIRMED','PACKED'].includes(String(o.orderStatus||'').toUpperCase())){
+    const change=document.createElement('button');change.type='button';change.className='track-order-button';
+    change.textContent='REQUEST DELIVERY DATE';
+    change.onclick=()=>{d.close();rescheduleDelivery(o.orderId)};row.append(change);
+   }
+   for(const item of (Array.isArray(o.orderItems)?o.orderItems:[])){
+    if(item.product?.productId){
+     const review=document.createElement('button');review.type='button';review.className='track-order-button';
+     review.textContent='REVIEW '+(item.product.productName||'PRODUCT');
+     review.onclick=()=>{d.close();reviewPurchase(item.product.productId)};row.append(review);
+    }
+   }
+   root.append(row);
   }
   const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>d.close();
   root.append(close);d.showModal();
@@ -824,6 +905,9 @@ function bind(){
  $('registerBtn').onclick=()=>login('SIGNUP');
  $('logoutBtn').onclick=logout;
  $('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
+ const wishlistBtn=document.createElement('button');wishlistBtn.id='wishlistBtn';wishlistBtn.className='nav-button';
+ wishlistBtn.type='button';wishlistBtn.textContent='WISHLIST ♡';wishlistBtn.onclick=showWishlist;
+ $('ordersBtn').before(wishlistBtn);
  $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
  $('adminOrdersBtn').onclick=showFulfillmentPanel;
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
