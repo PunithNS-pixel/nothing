@@ -415,7 +415,7 @@ async function login(mode=null){
   }
   await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
   const session=await verifySession();
-  if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
+  if(!session)throw new Error('Sign-in cookie was not accepted. Use the store's HTTPS address and enable site cookies.');
   syncAccountButtons();
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   $('adminOrdersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
