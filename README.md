@@ -296,3 +296,12 @@ Vercel hosts the static frontend; the Spring Boot API plus PostgreSQL,
 Kafka, RabbitMQ and OpenSearch must run separately on a persistent host.
 See [Vercel deployment guide](docs/DEPLOY_VERCEL.md) and set Vercel's
 `MARKETPLACE_BACKEND_ORIGIN` to the public HTTPS backend URL.
+
+## Resend transactional email for orders and signup OTPs
+
+The Java backend supports `MAIL_PROVIDER=resend` using the Resend HTTPS
+Email API instead of Gmail OAuth or SMTP. A verified sender domain and a
+private `RESEND_API_KEY` are required. Existing PostgreSQL confirmation
+jobs, RabbitMQ wake-ups and retry handling remain in place. See the
+[Resend integration guide](docs/RESEND_EMAIL.md). Resend **does not host**
+the storefront; see [Vercel hosting](docs/DEPLOY_VERCEL.md).
