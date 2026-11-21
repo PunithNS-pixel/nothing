@@ -66,7 +66,7 @@ class StripePaidOrderIntegrationTest {
   Cart cart=new Cart();cart.setUser(buyer);cart.setTotalPrice(550.0);
   cart=carts.save(cart);
   CartItem item=new CartItem();item.setCart(cart);item.setProduct(product);
-  item.setQuantity(2);item.setProductPrice(275.0);item.setDiscount(0);
+  item.setQuantity(2);item.setProductPrice(275.0);item.setDiscount(0.0);
   cartItems.saveAndFlush(item);
 
   StripeCheckoutAttempt attempt=new StripeCheckoutAttempt();
