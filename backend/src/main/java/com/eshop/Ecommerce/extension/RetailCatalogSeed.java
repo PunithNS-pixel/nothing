@@ -131,6 +131,9 @@ public class RetailCatalogSeed {
      case "Daily Body Lotion 400ml" -> "https://images.unsplash.com/photo-1771481103879-dd0e658fd7be?auto=format&fit=crop&w=800&q=82";
      case "Stackable Storage Boxes" -> "https://images.unsplash.com/photo-1786396798357-ac8ba6704d89?auto=format&fit=crop&w=800&q=82";
      case "Aloe Vera Moisturizer 100ml" -> "https://images.unsplash.com/photo-1774620714979-2c258294fa48?auto=format&fit=crop&w=800&q=82";
+     case "USB-C Multiport Hub" -> "https://images.unsplash.com/photo-1760376789478-c1023d2dc007?auto=format&fit=crop&w=800&q=82";
+     case "Travel Duffel Bag" -> "https://images.unsplash.com/photo-1774560745344-78667b3594a7?auto=format&fit=crop&w=800&q=82";
+     case "Aroma Diffuser 300ml" -> "https://images.unsplash.com/photo-1768471569643-717e823b5f9a?auto=format&fit=crop&w=800&q=82";
      default -> null;
    };
  }
