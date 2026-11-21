@@ -78,3 +78,27 @@ Visitors now have separate **SIGN IN** and **CREATE ACCOUNT** buttons. Signed-in
 Product cards use individually chosen Unsplash photos where available, with distinct product-specific illustrations and descriptive labels for the remaining products. If an external image cannot load, the illustration automatically replaces it. The demo photos are representative, not photographs of actual fulfilment inventory or proof of product branding. Marketplace pictures from Amazon/Flipkart were **not** copied or hotlinked. The Unsplash License is at https://unsplash.com/license. For real sales, sellers should upload photographs of the specific products they will ship.
 
 After pulling this commit, run \u0060docker compose -f backend/compose.yml --env-file backend/.env up -d --build --force-recreate app frontend\u0060. Catalog seeding only fills missing photo URLs and never overwrites established images or quantity values. Refresh \u0060http://localhost:8000\u0060 with Ctrl+Shift+R.
+
+## Marketplace UX and verified checkout (November 2026)
+
+The customer storefront at `http://localhost:8000` now includes a category showcase, popular picks / deals backed by real `price` and `specialPrice` fields, add-to-cart feedback with a **VIEW CART** action, and a responsive five-tab bottom nav (Home, Categories, Deals, Account, Cart). COD no longer requires typing YES: customers review an order-confirmation dialog. They can select, create, or correct saved addresses, including recipient name, mobile number, landmark, city, state and six-digit Indian PIN. Both `/api/addresses` writes and order placement enforce phone and name when `CHECKOUT_REQUIRE_PHONE=true` (the local Compose default). Existing addresses without this information must be edited before ordering.
+
+**Fashion sizes are actual SKUs:** 16 independently stocked variants across T-shirt, hoodie, jacket and running shoes. The frontend groups these into one size selector per style, and submits the **selected variant productId** to the PostgreSQL cart and order. This demonstrates inventory-backed sizes, **not** size-specific garment images or validated fit charts. Seller-supplied on-model photographs and true dimensions are needed before representing garment fit.
+
+**Email verification is implemented but needs an actual SMTP sender.** To enforce inbox ownership (including for previously created accounts), put the following in private `backend/.env` using legitimate credentials from your email provider:
+
+```dotenv
+EMAIL_VERIFICATION_REQUIRED=true
+SMTP_HOST=<your-provider-smtp-host>
+SMTP_PORT=587
+SMTP_USERNAME=<your-provider-username>
+SMTP_PASSWORD=<private-provider-password>
+SMTP_FROM=<verified-sender-address>
+CHECKOUT_REQUIRE_PHONE=true
+```
+
+Do not commit `backend/.env`. New signups receive a six-digit OTP valid for ten minutes, with a one-minute resend cooldown and five attempts; the code is stored hashed, not in plaintext. A successful OTP produces a one-time, fifteen-minute proof used in account creation or to verify an existing account. Checkout is blocked for unverified accounts when the feature is enabled. The backend never accepts an invented `verified=true` flag from the browser.
+
+**Important:** `EMAIL_VERIFICATION_REQUIRED=false` remains the development default so local demo sign-in and older automated fixtures keep working without SMTP. In that mode a syntactically valid email is **not** verified; do not present it as verified to users. Switch to `true` before any real store launch. Provider delivery, abuse protection per IP, bounce handling, and operational monitoring remain deployment responsibilities. Verification demonstrates control of the inbox, not identity or physical-address verification.
+
+Promotions are seeded only on untouched demo products with known original prices, with the server enforcing current `specialPrice`. Do not claim flash-sale expiry or product reviews that do not exist. Photographs are representative Unsplash demo media; Amazon/Flipkart photos and brand assets have **not** been copied. Obtain actual seller product/size media, measurements, photo rights and commercial inventory before launch.
