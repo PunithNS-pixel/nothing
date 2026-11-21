@@ -58,5 +58,5 @@ curl -fsS 'http://localhost:9090/api/v1/query?query=up' | python3 -c 'import jso
 curl -fsS http://localhost:8091/actuator/health >/dev/null
 printf 'MONITORING PASS\n'
 printf '\n[8/8] Optional Stripe safety\n'
-curl -fsS "$BASE/api/checkout/stripe/config" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data.get("enabled") is False; print("STRIPE PASS: disabled until private credentials configured")'
+curl -fsS "$BASE/api/checkout/stripe/config" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert isinstance(data.get("enabled"),bool); print("STRIPE CONFIG PASS:", "configured; perform a real test-mode webhook checkout separately" if data["enabled"] else "disabled until Stripe keys are configured")'
 printf '\nALL MULTICATEGORY MARKETPLACE SMOKE TESTS PASSED. Test-mode Stripe payments and live Aiven remain separately required.\n'
