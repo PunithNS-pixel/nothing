@@ -102,6 +102,15 @@ public class RetailCatalogSeed {
      case "Organic Almonds 500g" -> "https://images.unsplash.com/photo-1788632204503-c8fb6b5a2498?auto=format&fit=crop&w=800&q=82";
      case "Daily Sunscreen SPF 50" -> "https://images.unsplash.com/photo-1738721796968-bc0c4a55960d?auto=format&fit=crop&w=800&q=82";
      case "Hydrating Face Wash" -> "https://images.unsplash.com/photo-1732861612232-50cbe19c1ae5?auto=format&fit=crop&w=800&q=82";
+     case "Wireless Keyboard and Mouse Combo" -> "https://images.unsplash.com/photo-1721036469059-ab07e6bb6508?auto=format&fit=crop&w=800&q=82";
+     case "Ceramic Coffee Mug Set" -> "https://images.unsplash.com/photo-1522120573867-e574959f84c8?auto=format&fit=crop&w=800&q=82";
+     case "Nonstick Frying Pan 24cm" -> "https://images.unsplash.com/photo-1592156328697-079f6ee0cfa5?auto=format&fit=crop&w=800&q=82";
+     case "Minimalist Leather Wallet" -> "https://images.unsplash.com/photo-1697551894947-25fba13585e6?auto=format&fit=crop&w=800&q=82";
+     case "Classic Denim Jacket" -> "https://images.unsplash.com/photo-1548958142-5319c0ec17ab?auto=format&fit=crop&w=800&q=82";
+     case "Natural Peanut Butter 340g" -> "https://images.unsplash.com/photo-1662675115984-4ef64a3651a3?auto=format&fit=crop&w=800&q=82";
+     case "Arabica Coffee Beans 250g" -> "https://images.unsplash.com/photo-1769437082791-8c9af44d7c28?auto=format&fit=crop&w=800&q=82";
+     case "Dark Chocolate 70 Percent 100g" -> "https://images.unsplash.com/photo-1633782330753-a346e5303840?auto=format&fit=crop&w=800&q=82";
+     case "Vitamin C Face Serum 30ml" -> "https://images.unsplash.com/photo-1777450793530-99a0e7b7fc53?auto=format&fit=crop&w=800&q=82";
      default -> null;
    };
  }
