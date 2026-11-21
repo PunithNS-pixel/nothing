@@ -1,7 +1,7 @@
 name: NOTHING Marketplace three-replica round robin CI
 on:
   push:
-    branches: [feat/nothing-marketplace-springboot]
+    branches: [main, final]
   workflow_dispatch:
 permissions:
   contents: read
