@@ -61,6 +61,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired
     ModelMapper modelMapper;
+    @Autowired
+    com.eshop.Ecommerce.Service.EmailVerificationService emailVerification;
 
     @Override
     public ResponseEntity<?> login(LoginRequest loginRequest) {
@@ -112,6 +114,10 @@ public class AuthServiceImpl implements AuthService {
         roles.add(userRole);
 
         user.setRoles(roles);
+        if(emailVerification.required()){
+            emailVerification.consumeVerifiedProof(signUpRequest.getEmail(),signUpRequest.getEmailVerificationToken());
+            user.setEmailVerified(true);
+        }
         userRepository.save(user);
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
     }

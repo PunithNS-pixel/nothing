@@ -25,4 +25,7 @@ public class SignupRequest {
     @Size(min = 6, max = 40)
     private String password;
 
+    // One-time proof from /api/auth/email/confirm when email verification is enabled.
+    private String emailVerificationToken;
+
 }

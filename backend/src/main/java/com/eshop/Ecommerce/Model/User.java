@@ -40,6 +40,9 @@ public class User {
     @Column(name="email")
     private String email;
 
+    @Column(nullable=false,columnDefinition="boolean default false")
+    private boolean emailVerified = false;
+
     @NotBlank
     @Size(max = 120)
     @Column(name="password")

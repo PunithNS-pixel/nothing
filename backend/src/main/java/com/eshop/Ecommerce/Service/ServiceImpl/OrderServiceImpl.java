@@ -58,6 +58,10 @@ public class OrderServiceImpl implements OrderService {
     DomainEvents domainEvents;
     @org.springframework.beans.factory.annotation.Value("${checkout.require.phone:false}")
     private boolean requireDeliveryPhone;
+    @org.springframework.beans.factory.annotation.Value("${nothing.email.verification.required:false}")
+    private boolean requireVerifiedEmail;
+    @Autowired
+    UserRepository buyerRepository;
 
     @Override
     @Transactional
@@ -93,6 +97,10 @@ public class OrderServiceImpl implements OrderService {
             || address.getRecipientName()==null || address.getRecipientName().isBlank()
             || !address.getPincode().matches("[0-9]{6}"))) {
             throw new APIException("Add a valid delivery name, phone and six-digit PIN before ordering");
+        }
+        if(requireVerifiedEmail && buyerRepository.findByEmailIgnoreCase(emailId)
+            .map(User::isEmailVerified).orElse(false)==false){
+            throw new APIException("Verify your account email before placing an order");
         }
         Order order = new Order();
         order.setEmail(emailId);
