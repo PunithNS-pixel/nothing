@@ -102,5 +102,9 @@ class StripePaidOrderIntegrationTest {
   assertEquals(3,products.findById(product.getProductId()).orElseThrow().getQuantity());
   Long outbox=jdbc.queryForObject("select count(*) from nothing_outbox where payload->>'type'='ORDER_PLACED' and (payload->>'orderId')::bigint=?",Long.class,saved.getOrderId());
   assertEquals(1L,outbox);
+  Long emailJobs=jdbc.queryForObject(
+    "select count(*) from order_confirmation_emails where order_id=?",
+    Long.class,saved.getOrderId());
+  assertEquals(1L,emailJobs,"Signed paid checkout creates exactly one durable confirmation job");
  }
 }

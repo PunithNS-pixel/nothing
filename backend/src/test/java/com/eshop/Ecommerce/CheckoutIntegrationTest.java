@@ -20,6 +20,7 @@ class CheckoutIntegrationTest {
  @Autowired private AddressRepository addresses;
  @Autowired private OrderService orders;
  @Autowired private JdbcTemplate jdbc;
+ @Autowired private com.eshop.Ecommerce.extension.OrderConfirmationComposer composer;
 
  @Test
  void cashOnDeliveryReservesStockAndWritesEvents() {
@@ -46,5 +47,18 @@ class CheckoutIntegrationTest {
   assertEquals(0,products.findById(product.getProductId()).orElseThrow().getQuantity());
   Long events=jdbc.queryForObject("select count(*) from nothing_outbox where payload->>'type'='ORDER_PLACED' and (payload->>'orderId')::bigint=?",Long.class,placed.getOrderId());
   assertEquals(1L,events);
+  // One durable email job is committed with COD order; SMTP is NOT contacted
+  // when notifications are disabled (the default in CI).
+  Long emailJobs=jdbc.queryForObject(
+    "select count(*) from order_confirmation_emails where order_id=? and status='PENDING'",
+    Long.class,placed.getOrderId());
+  assertEquals(1L,emailJobs);
+  var receipt=composer.compose(placed.getOrderId());
+  assertEquals(buyer.getEmail(),receipt.to());
+  assertTrue(receipt.subject().contains(placed.getOrderId().toString()));
+  assertTrue(receipt.plainText().contains("Cash on delivery"));
+  assertTrue(receipt.plainText().contains("Integration Coffee"));
+  assertTrue(receipt.plainText().contains("INR 149.00"));
+  assertTrue(receipt.htmlText().contains("Bengaluru"));
  }
 }
