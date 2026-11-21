@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#121b30">
   <meta name="description" content="Nothing Market — shop electronics, fashion, essentials and more across India.">
   <title>NOTHING MARKET | Everything you need, nothing you don't.</title>
-  <link rel="stylesheet" href="styles.css?v=4">
-  <script src="app.js?v=4" defer></script>
+  <link rel="stylesheet" href="styles.css?v=5">
+  <script src="app.js?v=5" defer></script>
 </head>
 <body>
-  <div class="announcement">FREE DELIVERY ABOVE ₹999 <span>✦</span> SHOP THE NEW EVERYDAY</div>
+  <div class="announcement">REAL INVENTORY <span>✦</span> SECURE CHECKOUT <span>✦</span> SHOP THE NEW EVERYDAY</div>
   <header class="topbar">
     <a href="#" class="wordmark" aria-label="Nothing Market home"><span class="mark">N.</span>NOTHING<span class="market">MARKET</span></a>
     <div class="search-header">
@@ -22,14 +22,39 @@
       <span class="india-tag">🇮🇳 INDIA</span>
       <button id="retailerBtn" class="nav-button retailer-nav">▤ <span>RETAILERS</span></button>
       <button id="adminRetailersBtn" class="nav-button" hidden>APPROVALS</button>
-      <button id="signInBtn" class="nav-button login-action">SIGN IN</button>
-      <button id="registerBtn" class="nav-button signup-action">CREATE ACCOUNT</button>
-      <button id="accountBtn" class="nav-button account-action" hidden>♙ <span id="accountLabel">ACCOUNT</span></button>
+      <button id="signInBtn" class="nav-button login-action" hidden>SIGN IN</button>
+      <button id="registerBtn" class="nav-button signup-action" hidden>CREATE ACCOUNT</button>
+      <div class="account-header-menu">
+        <button id="accountBtn" class="nav-button account-action" type="button" aria-controls="accountMenu" aria-expanded="false">♙ <span id="accountLabel">LOGIN</span> <span class="menu-caret">⌄</span></button>
+        <div id="accountMenu" class="account-menu-popover" hidden>
+          <p class="account-menu-intro" id="menuWelcome">Welcome to Nothing Market</p>
+          <div class="menu-guest">
+            <button id="menuLogin" type="button">♙ SIGN IN</button>
+            <button id="menuRegister" type="button">✦ CREATE ACCOUNT</button>
+          </div>
+          <div class="menu-member" hidden>
+            <button id="menuProfile" type="button">♙ MY PROFILE</button>
+            <button id="menuAddresses" type="button">⌖ SAVED ADDRESSES</button>
+            <button id="menuOrders" type="button">▣ MY ORDERS</button>
+            <button id="menuRetailer" type="button">▤ BECOME A RETAILER</button>
+            <button id="menuLogout" type="button" class="menu-signout">↗ SIGN OUT</button>
+          </div>
+        </div>
+      </div>
       <button id="logoutBtn" class="nav-button logout-action" hidden>SIGN OUT</button>
       <button id="ordersBtn" class="nav-button">◎ <span>ORDERS</span></button>
       <button id="cartBtn" class="cart-launch">BAG <span id="cartCount">0</span></button>
     </div>
   </header>
+  <nav class="category-rail" aria-label="Browse top product categories">
+    <button type="button" data-category-nav="All" class="category-rail-item"><span aria-hidden="true">🛍️</span><strong>For You</strong></button>
+    <button type="button" data-category-nav="Fashion" class="category-rail-item"><span aria-hidden="true">👕</span><strong>Fashion</strong></button>
+    <button type="button" data-category-nav="Electronics" class="category-rail-item"><span aria-hidden="true">📱</span><strong>Electronics</strong></button>
+    <button type="button" data-category-nav="Beauty" class="category-rail-item"><span aria-hidden="true">💄</span><strong>Beauty</strong></button>
+    <button type="button" data-category-nav="Home & Living" class="category-rail-item"><span aria-hidden="true">🛋️</span><strong>Home</strong></button>
+    <button type="button" data-category-nav="Grocery" class="category-rail-item"><span aria-hidden="true">🛒</span><strong>Grocery</strong></button>
+    <a class="category-rail-item" href="#deals"><span aria-hidden="true">✦</span><strong>Top Deals</strong></a>
+  </nav>
   <nav class="category-nav"><a href="#home">HOME</a><a href="#categories">SHOP CATEGORIES</a><a href="#deals">DEALS & PICKS</a><a href="#catalog">ALL PRODUCTS</a><button data-category-nav="Electronics">ELECTRONICS</button><button data-category-nav="Fashion">FASHION</button><button data-category-nav="Home & Living">HOME & LIVING</button><button data-category-nav="Grocery">GROCERY</button><button data-category-nav="Beauty">BEAUTY</button><a href="#retailers">FOR RETAILERS</a><a href="#about">OUR PROMISE</a></nav>
   <main>
     <section class="hero" id="home">
@@ -85,7 +110,10 @@
     <div id="cartItems" class="cart-items"></div>
     <div class="drawer-bottom"><div class="total-line"><span>SUBTOTAL</span><strong id="cartTotal">₹0</strong></div><p>Final delivery eligibility will be confirmed at checkout. Cash on delivery is available for this demo.</p><button id="checkoutBtn" class="checkout-button">PROCEED TO CHECKOUT ↗</button></div>
   </aside>
-  <dialog id="modal" class="modal" aria-label="Account and checkout"><div id="modalContent"></div></dialog>
+  <dialog id="modal" class="modal" aria-label="Account and address editor"><div id="modalContent"></div></dialog>
+  <dialog id="checkoutDialog" class="checkout-dialog" aria-label="Nothing Market checkout">
+    <div id="checkoutContent"></div>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="cartNudge" class="cart-nudge" role="status" aria-live="polite" hidden>
     <span class="nudge-check">✓</span><strong id="cartNudgeText">Added to bag</strong>
