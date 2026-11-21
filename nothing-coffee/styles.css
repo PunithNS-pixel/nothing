@@ -12,3 +12,26 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 /* Cart persistence and image fallback markup from the existing Spring Boot client. */
 .cart-row{display:grid;grid-template-columns:74px minmax(0,1fr) auto;gap:13px;align-items:start;border-bottom:1px solid #d9ddd5;padding:16px 0}.cart-icon{width:74px;height:76px;background:#edf1e8;display:grid;place-items:center;font-size:32px;overflow:hidden}.cart-icon img{width:100%;height:100%;object-fit:cover}.cart-row strong{display:block;font-size:12px;line-height:1.4}.cart-row small{display:block;color:#6e796b;font-size:10px;margin:4px 0}.cart-price{font-weight:800;font-size:12px}.qty{display:flex;gap:9px;align-items:center;margin-top:10px}.qty button{background:#fff;border:1px solid #b4bcb0;min-width:27px;min-height:27px}.qty b{font-size:12px}.product-placeholder{background:var(--photo-bg,#eef0ea);height:100%;width:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px;text-align:center}.product-placeholder-icon{font-size:clamp(32px,5vw,80px)}.product-placeholder-name{font-weight:800;font-size:12px;line-height:1.3}.product-placeholder-label{font-size:8px;font-weight:800;letter-spacing:.16em;color:#697266}.quick-view{position:absolute;bottom:12px;left:12px;right:12px;z-index:3;border:0;background:#f5f6e9ed;color:#121812;font-size:10px;font-weight:800;letter-spacing:.09em;padding:12px;opacity:0;transform:translateY(12px);transition:opacity .2s,transform .2s}.product-card:hover .quick-view,.quick-view:focus-visible{opacity:1;transform:translateY(0)}.brand-tag{color:#6b785d;font-size:9px;letter-spacing:.13em;font-weight:900;margin-bottom:5px;text-transform:uppercase}.quick-panel{display:grid;grid-template-columns:1fr 1.15fr;gap:20px;align-items:start}.quick-panel img{width:100%;aspect-ratio:1;object-fit:cover;background:#e9eee4}.quick-panel h3{font:25px/1.1 'Space Grotesk',sans-serif;margin:10px 0}.quick-panel p{font-size:12px;color:#5a6755}.quick-panel .quick-price{font:25px var(--head)}.quick-panel .primary-choice{display:block;width:100%;margin:12px 0 0}@media(max-width:670px){.quick-view{opacity:1;transform:none;padding:8px;font-size:9px}.quick-panel{grid-template-columns:1fr}.quick-panel img{max-height:190px}.cart-row{grid-template-columns:64px minmax(0,1fr) auto;gap:9px}.cart-icon{width:64px;height:68px}.retailer-nav,.logout-action,.account-action{display:inline-flex}}
+/* Variant-aware shopping, catalog repair and actionable bag confirmations */
+.toast{display:flex;align-items:center;justify-content:center;gap:16px;text-align:left;min-width:min(480px,calc(100vw - 32px));border:1px solid #66854f}
+.toast.visible{pointer-events:auto}
+.toast-action{flex-shrink:0;background:#ccf739;color:#111912;border:0;padding:10px 13px;font-size:10px;font-weight:900;letter-spacing:.06em}
+.toast-action:hover{background:#e1ff86}
+.modal:has(.quick-panel){width:min(92vw,820px)}
+.quick-info{min-width:0}
+.quick-photo{min-height:220px;background:#e8ede3;display:grid;place-items:center;font-size:65px}
+.size-picker{padding:10px 0;border-block:1px solid #dae0d4;margin:16px 0}
+.size-picker-head{font-size:10px;font-weight:900;letter-spacing:.14em;margin:4px 0 12px}
+.size-options{display:flex;flex-wrap:wrap;gap:8px}
+#modalContent .size-option{font-size:11px;min-height:42px;min-width:52px;border:1px solid #a4aca0;padding:9px 12px;background:#fff;color:#172215;font-weight:800}
+#modalContent .size-option.selected,#modalContent .size-option[aria-pressed=true]{background:#cafa36;border-color:#151b12}
+#modalContent .size-option:disabled{opacity:.35;text-decoration:line-through;cursor:not-allowed}
+.size-guide{margin:10px 0;font-size:11px!important;color:#4e624e!important;line-height:1.5}
+.address-choices{display:grid;gap:10px;margin:14px 0 20px}
+#modalContent .address-option{padding:16px;text-align:left;background:#fff;border:1px solid #b6c2b2;color:#131b11;font-size:12px;line-height:1.5;font-weight:700}
+#modalContent .address-option:hover,#modalContent .address-option:focus-visible{background:#eafbce;border-color:#426c27}
+.loading-card{grid-column:1/-1;max-width:100%;padding:42px 24px;line-height:1.7}
+.loading-card strong{font-size:clamp(22px,3vw,38px);display:block;margin-bottom:8px}
+.loading-card code{display:inline-block;background:#e7eee2;padding:2px 6px;overflow-wrap:anywhere}
+.loading-card .outline-button{margin-top:12px}
+@media(max-width:670px){.toast{bottom:16px;min-width:calc(100vw - 28px);padding:12px 15px;flex-wrap:wrap;font-size:11px}.toast-action{padding:9px 11px}.quick-photo{min-height:160px}}
