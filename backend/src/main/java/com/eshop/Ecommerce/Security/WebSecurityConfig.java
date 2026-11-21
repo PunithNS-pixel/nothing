@@ -74,6 +74,7 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/seller/**").hasAnyRole("ADMIN","SELLER")
                                 .requestMatchers("/api/public/**").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/search/products").permitAll()
+                                .requestMatchers(HttpMethod.GET, "/api/checkout/stripe/config").permitAll()
                                 .requestMatchers("/swagger-ui/**").permitAll()
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/images/**").permitAll()
