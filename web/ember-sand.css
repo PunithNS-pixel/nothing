@@ -1,0 +1,102 @@
+/* NOTHING — Ember & Sand storefront
+   Palette inspired by premium lifestyle retail: warm black, parchment,
+   marigold yellow and burnt orange. Layout and commerce JS unchanged. */
+:root{
+ --ink:#171613;--paper:#f4ead6;--accent:#fff3d9;--silver:#e8dcc7;
+ --ember:#ea641d;--marigold:#f5be37;--coal:#171613;--sand:#f4ead6;
+}
+body{background:var(--sand);color:var(--coal)}
+::selection{background:#f5be37;color:#171613}
+button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible{outline:3px solid #ffb32b;outline-offset:3px}
+.promo-strip{background:#171613;color:#f6e9cf;border-bottom:1px solid #5c4c3a}
+.promo-strip b{color:#f5be37}
+.site-header{color:#fff2db;border-bottom:1px solid #f5e2c655}
+.site-header.scrolled{color:#171613;background:rgba(246,235,215,.97);border-color:#bdab8b;backdrop-filter:blur(16px)}
+.logo{letter-spacing:-.065em}
+.nav-links a:hover,.text-button:hover,.cart-button:hover{color:#ffd36e;opacity:1}
+.site-header.scrolled .nav-links a:hover,.site-header.scrolled .text-button:hover{color:#c45018}
+.mobile-menu{background:#f4ead6;color:#171613}
+.mobile-menu a{border-color:#d1bfa6}
+.hero,.hero.theme-original,.hero.theme-sugarfree,.hero.theme-green,.hero.theme-pink,.hero.theme-red{--hero-type:#fff1d8;--hero-dark:#1d1713}
+.hero,.hero.theme-original{--hero-bg:#2a211c}
+.hero.theme-sugarfree{--hero-bg:#3b2b21}
+.hero.theme-green{--hero-bg:#4c3521}
+.hero.theme-pink{--hero-bg:#6a3b25}
+.hero.theme-red{--hero-bg:#8d3d1c}
+.hero{background:radial-gradient(circle at 67% 43%,#e57d2544,transparent 45%),var(--hero-bg)}
+.hero:after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(110deg,#0005 1%,transparent 54%,#0003)}
+.hero-title{color:#f9e8c8;letter-spacing:-.11em;text-shadow:0 8px 45px #0007}
+.headline-dot{color:#ffb73e}
+.hero-counter,.hero-flavor-tag,.hero-stamp,.scroll-hint{color:#fff0d3}
+.hero-flavor-tag{border-color:#f1c878}
+.hero-stamp{border-color:#f0ca83}
+.hero-copy p{color:#f5e4cb}
+.hero .pill-button.light{background:#f7bf42;color:#21170e;border:1px solid #ffde8a}
+.hero .pill-button.light:hover{background:#ffe5a8;color:#171613}
+.hero-selector{border-color:#f1d9b688}
+.flavor-tab{color:#f8e6cd}
+.flavor-tab.active{color:#ffd368}
+.flavor-tab.active .tab-dot{background:#f7c85e}
+.selector-controls button:hover{background:#f5be37;color:#1b1713}
+.hero-product-stage img{filter:drop-shadow(30px 34px 29px #0008)}
+.ticker-dark{background:#171613;color:#f9e8c8;border-color:#171613}
+.ticker-track{letter-spacing:.015em}
+.shop-section{background:#f4ead6;color:#201a14}
+.section-head h2 em{color:#c65b22}
+.eyebrow{letter-spacing:.13em}
+.head-right p{color:#5e4b37}
+.product-card{border-radius:4px;color:#fff3df;box-shadow:0 14px 35px #21120722;transition:transform .4s,box-shadow .4s}
+.product-card:hover{transform:translateY(-7px);box-shadow:0 22px 42px #24130345}
+.product-red{background:linear-gradient(155deg,#7c341c,#c55324)}
+.product-blue{background:linear-gradient(145deg,#242c31,#5e5245)}
+.product-brown{background:linear-gradient(135deg,#49301d,#976232)}
+.product-card .round-add{border:1px solid #ffe7b0;color:#fff2db}
+.product-card .round-add:hover{background:#f5be37;color:#20160b;border-color:#f5be37}
+.product-orbit{border-color:#ffe9c944}
+.product-orbit::after{border-color:#ffe9c92f}
+.product-card-header{color:#ffedcc}
+.ingredients-section{background:#201c19;color:#f6ebda}
+.ingredients-intro h2 em{color:#f5be37}
+.ingredients-intro .pill-button{background:#f5be37;color:#1b1713}
+.ingredient-row{border-color:#f5ddac55}
+.ingredient-row:last-child{border-color:#f5ddac55}
+.teams-section{background:#f0dfc1;color:#211812}
+.teams-visual{background:#e1b86f}
+.teams-paper{background:#f8e9cf;color:#221812}
+.paper-two{background:#f4bc3d}
+.paper-three{background:#b94c20}
+.faq-section{background:#f1e4cf;color:#1c1713}
+.faq-heading h2 em{color:#c45c25}
+.faq-items details{border-color:#b7a085}
+.faq-items details:last-child{border-color:#b7a085}
+.newsletter-section{background:#f5be37;color:#211811}
+.newsletter-section h2 em{color:#bc4d19}
+.newsletter-section input{border-color:#463120;color:#211811}
+.newsletter-section button{background:#1c1915;color:#f9edda}
+footer,.site-footer{background:#171613;color:#f6ead5}
+footer a:hover,.site-footer a:hover{color:#f5be37}
+.cart-drawer{background:#f6ead6;color:#211911;box-shadow:-20px 0 60px #140d0a77}
+.drawer-head{border-color:#bda888}
+.drawer-head h2 span{color:#c85420}
+.cart-items{background:#f6ead6}
+.cart-item{border-color:#cbb89c}
+.cart-thumb.original{background:#30241c}
+.cart-thumb.sugarfree{background:#56422e}
+.cart-thumb.green{background:#77542a}
+.cart-thumb.pink{background:#aa5729}
+.cart-thumb.red{background:#b54420}
+.cart-thumb.mixed{background:#d39b2b}
+.drawer-checkout,.checkout-button{background:#1d1914;color:#fff0d8}
+.drawer-checkout:hover,.checkout-button:hover{background:#b9501e;color:#fff}
+dialog,.dialog,.account-dialog{background:#f7eddb;color:#201912;border-color:#ccb695}
+dialog::backdrop{background:#0b0807d9}
+dialog input,dialog select,dialog textarea{background:#fff8ea;color:#251c14;border:1px solid #c8b296}
+dialog input:focus-visible,dialog select:focus-visible{outline-color:#db711f}
+dialog button[type=submit]{background:#1c1915;color:#fff0d6}
+dialog button[type=submit]:hover{background:#bf541f}
+@media(max-width:760px){
+ .hero,.hero.theme-original,.hero.theme-sugarfree,.hero.theme-green,.hero.theme-pink,.hero.theme-red{background:radial-gradient(circle at 70% 36%,#cf6b2733,transparent 51%),var(--hero-bg)}
+ .site-header.scrolled{background:#f4ead6}
+ .product-card{border-radius:4px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
