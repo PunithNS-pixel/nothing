@@ -468,7 +468,16 @@ async function showOrders(){
   for(const o of orders){
    const row=document.createElement('div');row.style.cssText='padding:16px 0;border-bottom:1px solid #ddd';
    const h=document.createElement('strong');h.textContent='Order #'+o.orderId+' · '+money(o.totalAmount);
-   const p=document.createElement('p');p.textContent=(o.orderDate||'')+' · '+(o.orderStatus||'Placed');row.append(h,p);root.append(row);
+   const p=document.createElement('p');p.textContent=(o.orderDate||'')+' · '+(o.orderStatus||'Placed');
+   row.append(h,p);
+   for(const item of (Array.isArray(o.orderItems)?o.orderItems:[])){
+    const line=document.createElement('div');line.className='order-detail-line';
+    const product=item.product||{};
+    const quantity=Number(item.quantity)||0;
+    line.textContent=quantity+' × '+(product.productName||'Product')+(product.variantLabel?' · size '+product.variantLabel:'')+' · '+money(item.orderedProductPrice);
+    row.append(line);
+   }
+   root.append(row);
   }
   const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>$('modal').close();root.append(close);$('modal').showModal();
  }catch(e){notify('Order history is temporarily unavailable: '+e.message,true)}
