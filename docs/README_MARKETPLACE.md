@@ -2,6 +2,8 @@
 
 Branch: `feat/nothing-marketplace-springboot` (forked from `backend`, NOT the FastAPI `feat/nothing` branch).
 
+**New authentication and customer feature documentation:** [AUTH_AND_MARKETPLACE_FEATURES.md](AUTH_AND_MARKETPLACE_FEATURES.md).
+
 This branch retains the original Java Spring Boot backend and all existing auth, PostgreSQL carts/orders/addresses, COD, Stripe test-mode Checkout, retailer GSTIN applications, Kafka outbox, OpenSearch, RabbitMQ, Prometheus/Grafana and Terraform/Aiven configuration. It replaces the storefront with an original editorial NOTHING MARKET design and adds 56 new **synthetic demo listings** in Fashion (16), Toys & Games (16), Electronics (12) and Gadgets (12); the prior 46-category seed remains. The new data has 23 fictional demo brand names and 28 distinct representative photograph URLs. The combined demo catalog has approximately 102 products when both seeds are enabled and starts from an empty database.
 
 **Important:** these aren't verified brand offers. Images from Unsplash are category-representative and may not match the listing. See `nothing-coffee/PHOTO_CREDITS.md`.
