@@ -120,11 +120,18 @@ jobs:
           RABBITMQ_PASSWORD: ci-gce-placeholder-not-production
           JWT_SECRET: Y2ktdGVzdC1rZXktb25seS1mb3Itbm90aGluZy1iYWNrZW5kLTEyMzQ1Njc4OTA=
           SITE_DOMAIN: example.invalid
+          FRONTEND_URL: https://example.invalid/
+          STRIPE_SUCCESS_URL: https://example.invalid/?checkout=stripe-success
+          STRIPE_CANCEL_URL: https://example.invalid/?checkout=stripe-cancel
         run: |
           docker compose -f backend/compose.gce.yml config --quiet
           bash -n scripts/deploy-gce.sh scripts/bootstrap-gce-vm.sh
           python3 -m py_compile scripts/prepare-gce-env.py
           python3 -m unittest discover -s scripts -p 'test_prepare_gce_env.py' -v
+      - name: Validate Vercel frontend and API proxy configuration
+        run: |
+          node --check nothing-coffee/vercel.mjs
+          node scripts/test-vercel-config.mjs
       - name: Maven compile and tests
         working-directory: backend
         run: mvn -B clean verify

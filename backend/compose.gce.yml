@@ -66,7 +66,7 @@ services:
       HIBERNATE_DDL_AUTO: update
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
       JWT_COOKIE_SECURE: "true"
-      FRONTEND_URL: https://${SITE_DOMAIN:?Set SITE_DOMAIN}/
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in private backend env}
       IMAGE_BASE_URL: https://${SITE_DOMAIN:?Set SITE_DOMAIN}/images
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -82,8 +82,8 @@ services:
       SEED_OFFERS: ${SEED_OFFERS:-true}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      STRIPE_SUCCESS_URL: https://${SITE_DOMAIN:?Set SITE_DOMAIN}/?checkout=stripe-success
-      STRIPE_CANCEL_URL: https://${SITE_DOMAIN:?Set SITE_DOMAIN}/?checkout=stripe-cancel
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:?Set STRIPE_SUCCESS_URL in private backend env}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:?Set STRIPE_CANCEL_URL in private backend env}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

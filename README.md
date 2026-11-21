@@ -289,3 +289,10 @@ use [Google Cloud deployment: macOS one-command setup, costs, HTTPS, safety and 
 Cloud billing, project permissions, Google Cloud CLI login and private deployment
 credentials require action from the project owner; the code alone cannot create
 resources in a Google account. Do not deploy this demo as a real-money production shop.
+
+## Vercel storefront deployment
+
+Vercel hosts the static frontend; the Spring Boot API plus PostgreSQL,
+Kafka, RabbitMQ and OpenSearch must run separately on a persistent host.
+See [Vercel deployment guide](docs/DEPLOY_VERCEL.md) and set Vercel's
+`MARKETPLACE_BACKEND_ORIGIN` to the public HTTPS backend URL.
