@@ -72,6 +72,10 @@ public class WebSecurityConfig {
                                 .requestMatchers("/h2-console/**").permitAll()
                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                 .requestMatchers("/api/seller/**").hasAnyRole("ADMIN","SELLER")
+                                // Preserve legacy routes but restrict all catalog mutations to administrators.
+                                .requestMatchers(HttpMethod.POST, "/api/public/categories").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.PUT, "/api/public/categories/*").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.PUT, "/api/products/*/image").hasRole("ADMIN")
                                 .requestMatchers("/api/public/**").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/search/products").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/checkout/stripe/config").permitAll()
