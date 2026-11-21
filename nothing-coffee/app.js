@@ -249,7 +249,7 @@ function openProductDetail(id){
   const reduced=Number(selected.originalPrice)>cost
    ?Math.round((Number(selected.originalPrice)-cost)/Number(selected.originalPrice)*100):0;
   const hasStock=Number(selected.stock)>0;
-  const sizeButtons=items.length>1?'<div class="detail-size-block"><div class="detail-section-header"><strong>SELECT '+(/shoe|sneaker/i.test(name)?'SHOE SIZE':'SIZE')+'</strong><button id="productSizeGuide" type="button">SIZE GUIDE ↗</button></div><div class="detail-size-list">'+items.map(p=>
+  const sizeButtons=items.length>1?'<div class="detail-size-block"><div class="detail-section-header"><strong>SELECT '+(/shoe|sneaker/i.test(name)?'UK SHOE SIZE':'SIZE')+(sizeChosen?'':' · REQUIRED')+'</strong><button id="productSizeGuide" type="button">SIZE GUIDE ↗</button></div><div class="detail-size-list">'+items.map(p=>
    '<button type="button" data-detail-size="'+p.productId+'" class="'+(p.productId===selected.productId?'selected':'')+'" aria-pressed="'+(p.productId===selected.productId)+'" '+(p.stock<1?'disabled':'')+'>'+escape(variantOf(p)?.size||'')+'</button>').join('')+'</div></div>':'';
   root.innerHTML='<div class="detail-topbar"><div><span class="eyebrow">NOTHING MARKET / '+escape(selected.category)+'</span><h2>'+escape(name)+'</h2></div><button type="button" class="detail-close" id="detailClose">✕</button></div>'+
    '<div class="detail-body"><div class="detail-gallery"><div class="detail-main-media"><button type="button" id="detailZoom" class="detail-zoom'+(zoomed?' zoomed':'')+'" aria-label="Enlarge product photo">'+markup+'</button><span class="detail-zoom-hint">'+(zoomed?'CLICK TO RESET':'CLICK IMAGE TO ZOOM')+'</span></div>'+
@@ -279,10 +279,21 @@ function openProductDetail(id){
    if(p&&p.stock>0){selected=p;sizeChosen=true;photoIndex=0;zoomed=false;variantSelections.set(name,String(p.productId));updateLink();paint()}
   });
   if($('productSizeGuide'))$('productSizeGuide').onclick=()=>{
-   const text=/shoe|sneaker/i.test(name)
-    ?'The numbers refer to shoe size SKUs only. The seller has not supplied verified centimetre or UK/US size conversions yet.'
-    :'The letters are stock size labels. The seller has not supplied body measurements or a verified garment-fit chart yet.';
-   informationModal('SIZE GUIDE',text);
+   if(!/shoe|sneaker/i.test(name)){
+    informationModal('SIZE GUIDE','These are garment size labels. The seller has not provided verified body measurements or a brand-specific fit chart.');return;
+   }
+   const table=[['UK size','Approx. foot length'],['6','24.6 cm'],['7','25.4 cm'],['8','26.2 cm'],['9','27.1 cm'],['10','27.9 cm'],['11','28.8 cm'],['12','29.6 cm']];
+   const d=$('modal'),content=$('modalContent');content.replaceChildren();
+   const h=document.createElement('h2');h.textContent='SHOE SIZE GUIDE';
+   const note=document.createElement('p');note.textContent='Measure heel to longest toe while standing. Values are general UK-size references only, not verified dimensions for this brand. Check the manufacturer fit chart when provided.';
+   const grid=document.createElement('table');grid.style.cssText='width:100%;border-collapse:collapse;text-align:left;margin:18px 0';
+   for(const [i,row] of table.entries()){
+    const tr=document.createElement('tr');
+    for(const value of row){const cell=document.createElement(i?'td':'th');cell.textContent=value;cell.style.cssText='padding:9px 12px;border-bottom:1px solid #dadada';tr.append(cell)}
+    grid.append(tr);
+   }
+   const closeBtn=document.createElement('button');closeBtn.className='outline-button';closeBtn.textContent='CLOSE';
+   closeBtn.onclick=()=>d.close();content.append(h,note,grid,closeBtn);d.showModal();
   };
   $('detailWishlist').onclick=async()=>{await toggleWishlist(selected.productId);paint()};
   $('detailAdd').onclick=async()=>{if(busy)return;if(!sizeChosen){notify('Choose your size first.',true);return}busy=true;const added=await addItem(selected.productId);busy=false;if(added)paint()};
