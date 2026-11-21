@@ -33,3 +33,22 @@
 .review-card{padding:15px 0;border-bottom:1px solid #ddd}
 button[hidden],.nav-button[hidden]{display:none!important}
 @media(max-width:760px){.retailer-section{grid-template-columns:1fr}.retailer-section-copy{padding:55px 6%}.retailer-section-visual{min-height:330px}.hero-art .object-1{width:155px;height:164px;top:10%;left:30%}.hero-art .object-2{width:120px;height:120px;bottom:8%}.hero-art .object-3{width:100px;height:120px}.retailer-nav span{display:none}}
+
+/* Marketplace-style, accessible account actions. No typed LOGOUT required. */
+.login-action,.signup-action,.logout-action{padding:10px 13px;border-radius:9px;border:1px solid #d8dfd5!important}
+.signup-action{background:var(--lime)!important;border-color:var(--lime)!important}
+.logout-action{color:#ad3232!important;background:#fff7f7!important;border-color:#f1cccc!important}
+.account-action{max-width:138px;overflow:hidden;text-overflow:ellipsis}
+.product-visual:has(.product-placeholder){background:var(--photo-bg,#edf0ec)}
+.product-placeholder{width:100%;height:100%;background:var(--photo-bg,#edf0ec);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:25px 18px;gap:10px;text-align:center}
+.product-placeholder-icon{font-size:clamp(56px,7vw,92px);line-height:1;filter:drop-shadow(8px 12px 6px #0002)}
+.product-placeholder-name{font-size:12px;max-width:190px;font-weight:800;letter-spacing:.02em;line-height:1.4}
+.product-placeholder-label{font-size:8px;color:#68707a;letter-spacing:.12em;font-weight:800}
+.product-visual img{width:100%;height:100%;object-fit:cover;object-position:center}
+.product-visual .tag{z-index:1}
+.cart-icon img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.cart-icon .product-placeholder{padding:2px;gap:0;border-radius:8px}
+.cart-icon .product-placeholder-icon{font-size:25px}
+.cart-icon .product-placeholder-name,.cart-icon .product-placeholder-label{display:none}
+@media(max-width:1100px){.header-right{gap:6px}.login-action,.signup-action,.logout-action{padding:9px 10px}}
+@media(max-width:760px){.login-action,.signup-action,.logout-action{font-size:10px}.header-right{flex-wrap:wrap;justify-content:flex-end}.product-placeholder-icon{font-size:70px}}

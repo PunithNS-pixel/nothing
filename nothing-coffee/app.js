@@ -10,7 +10,30 @@ const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailer
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icons={'Electronics':'🎧','Fashion':'👟','Home & Living':'💡','Grocery':'🛒','Beauty':'🧴','Coffee':'☕'};
 const tones={'Electronics':'#e8eefa','Fashion':'#ffede8','Home & Living':'#f2eddc','Grocery':'#ecf6db','Beauty':'#ffecf2','Coffee':'#f5e9d8'};
-const chooseIcon=p=>/watch/i.test(p.name)?'⌚':/charger/i.test(p.name)?'🔌':/speaker/i.test(p.name)?'🔊':/backpack/i.test(p.name)?'🎒':/shirt/i.test(p.name)?'👕':/rice/i.test(p.name)?'🍚':/almond/i.test(p.name)?'🥜':/bottle/i.test(p.name)?'🧊':/bedsheet/i.test(p.name)?'🛏️':/sunscreen/i.test(p.name)?'☀️':icons[p.category]||'📦';
+// A recognisable, product-specific illustration is preferable to an unrelated stock photo.
+const productIcons=[
+ [/earbuds/i,'🎧'],[/headphones/i,'🎧'],[/speaker/i,'🔊'],[/charger/i,'🔌'],[/power bank/i,'🔋'],[/keyboard/i,'⌨️'],[/laptop stand/i,'💻'],[/webcam/i,'📷'],[/usb-c multiport/i,'🔗'],[/charging pad/i,'⚡'],[/ssd/i,'💾'],[/watch/i,'⌚'],
+ [/water bottle/i,'🧴'],[/bedsheet/i,'🛏️'],[/desk lamp/i,'💡'],[/mug/i,'☕'],[/frying pan/i,'🍳'],[/diffuser/i,'🪔'],[/cushion/i,'🛋️'],[/storage box/i,'🗃️'],[/kitchen scale/i,'⚖️'],
+ [/backpack/i,'🎒'],[/t-shirt/i,'👕'],[/running shoes/i,'👟'],[/hoodie/i,'🧥'],[/wallet/i,'👛'],[/sunglasses/i,'🕶️'],[/duffel/i,'🧳'],[/socks/i,'🧦'],[/denim jacket/i,'👖'],
+ [/rice/i,'🍚'],[/almonds/i,'🥜'],[/green tea/i,'🍵'],[/groundnut oil/i,'🫗'],[/peanut butter/i,'🥜'],[/oats/i,'🥣'],[/coffee beans/i,'🫘'],[/chocolate/i,'🍫'],
+ [/sunscreen/i,'☀️'],[/face wash/i,'🫧'],[/vitamin c serum/i,'💧'],[/moisturizer/i,'🧴'],[/shampoo/i,'🧼'],[/lip balm/i,'💄'],[/hand cream/i,'🖐️'],[/body lotion/i,'🧴']
+];
+const chooseIcon=p=>productIcons.find(([pattern])=>pattern.test(p.name))?.[1]||icons[p.category]||'📦';
+const productArtwork=p=>{
+ const palette=['#e9edff','#feede5','#f2eeda','#dff3ed','#ffe7ee','#e9e4fa','#e9f2ff','#f1ecd8'];
+ const hash=Array.from(p.name).reduce((x,c)=>(x*31+c.charCodeAt(0))>>>0,7);
+ const bg=palette[hash%palette.length];
+ return '<div class="product-placeholder" style="--photo-bg:'+bg+'"><span class="product-placeholder-icon" aria-hidden="true">'+chooseIcon(p)+'</span><span class="product-placeholder-name">'+escape(p.name)+'</span><span class="product-placeholder-label">PRODUCT ILLUSTRATION</span></div>';
+};
+const bindImageFallbacks=scope=>{
+ scope.querySelectorAll('img[data-product-image]').forEach(img=>{
+  img.addEventListener('error',()=>{
+   const p=productById(img.dataset.productImage);
+   if(p)img.replaceWith(document.createRange().createContextualFragment(productArtwork(p)));
+  },{once:true});
+ });
+};
+
 const notify=(msg,bad=false)=>{const el=$('toast');el.textContent=msg;el.style.background=bad?'#8b2424':'#172339';el.classList.add('visible');clearTimeout(notify.timer);notify.timer=setTimeout(()=>el.classList.remove('visible'),4500)};
 async function request(path,options={}){
  const r=await fetch(API+path,{...options,credentials:'include',headers:{'Content-Type':'application/json',...(options.headers||{})}});
@@ -26,10 +49,11 @@ function updateCart(){
  $('cartCount').textContent=count;
  $('cartTotal').textContent=money(items.reduce((n,[id,q])=>n+itemPrice(productById(id))*q,0));
  $('cartItems').innerHTML=items.length?items.map(([id,q])=>{
-   const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img loading="lazy" src="'+escape(p.image)+'" alt="">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
+   const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+escape(id)+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
  }).join(''):'<div class="empty-state"><strong>YOUR BAG IS EMPTY.</strong><p>Some good stuff is waiting for you.</p></div>';
  $('cartSyncStatus').textContent=user?'Saved to your PostgreSQL cart':'Guest bag saved on this device';
  $('checkoutBtn').disabled=!count||cartBusy;
+ bindImageFallbacks($('cartItems'));
  document.querySelectorAll('[data-qty]').forEach(el=>el.onclick=()=>changeQty(el.dataset.qty,Number(el.dataset.delta)));
 }
 async function persistCart(){
@@ -58,10 +82,11 @@ function drawProducts(){
  $('emptyState').hidden=visible.length>0;
  $('productGrid').innerHTML=visible.map(p=>{
   const stock=Number(p.stock),icon=chooseIcon(p),safeId=Number(p.productId);
-  let image='<span class="emoji" aria-hidden="true">'+icon+'</span>';
-  if(p.image&&/^https:\/\//.test(p.image))image='<img loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">';
+  let image=productArtwork(p);
+  if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">';
   return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
  }).join('');
+ bindImageFallbacks($('productGrid'));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add));
 }
 async function applyFilters(){
@@ -154,7 +179,7 @@ async function verifySession(){
 }
 async function loadSession(){
  const session=await verifySession();
- $('accountLabel').textContent=user?user.toUpperCase():'SIGN IN';
+ syncAccountButtons();
  $('adminRetailersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  await loadRetailerStatus();await applyFilters();await loadServerCart();
 }
@@ -193,8 +218,8 @@ function selectAccountMode(){
   dialog.showModal();
  });
 }
-async function login(){
- const choice=await selectAccountMode();
+async function login(mode=null){
+ const choice=mode||await selectAccountMode();
  if(!choice)return false;
  const signup=choice==='SIGNUP';
  const fields=[{name:'username',label:'USERNAME',autocomplete:'username',minLength:3}];
@@ -207,18 +232,31 @@ async function login(){
   await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
   const session=await verifySession();
   if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
-  $('accountLabel').textContent=user.toUpperCase();
+  syncAccountButtons();
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
 }
+function syncAccountButtons(){
+ $('signInBtn').hidden=!!user;
+ $('registerBtn').hidden=!!user;
+ $('accountBtn').hidden=!user;
+ $('logoutBtn').hidden=!user;
+ $('accountLabel').textContent=user?user.toUpperCase():'ACCOUNT';
+}
+async function logout(){
+ try{await request('/api/auth/signout',{method:'POST'})}catch(e){console.warn('Sign-out request:',e)}
+ user=null;cart={};retailerStatus='NOT_APPLIED';retailerDiscount=0;
+ $('adminRetailersBtn').hidden=true;
+ // Do not transfer one customer's bag to the next shopper on the same device.
+ localStorage.removeItem('nothing-guest-cart');
+ syncAccountButtons();await applyFilters();updateCart();
+ notify('Signed out. Your saved account bag remains in PostgreSQL.');
+}
 async function accountAction(){
- if(!user){await login();return}
- const choice=await showDialog('SIGNED IN AS '+user.toUpperCase(),[{name:'action',label:'TYPE LOGOUT TO SIGN OUT',placeholder:'LOGOUT'}],'CONTINUE');
- if(!choice||choice.action.toUpperCase()!=='LOGOUT')return;
- try{await request('/api/auth/signout',{method:'POST'});}catch{}
- user=null;cart={};retailerStatus='NOT_APPLIED';retailerDiscount=0;$('accountLabel').textContent='SIGN IN';$('adminRetailersBtn').hidden=true;saveGuest();await applyFilters();updateCart();notify('Signed out. Your account cart is kept in PostgreSQL.');
+ if(!user){await login('LOGIN');return}
+ await informationModal('YOUR ACCOUNT','Signed in as '+user+'. Use ORDERS to track purchases, or the SIGN OUT button in the header.');
 }
 async function retailerAction(){
  if(!user && !await login())return;
@@ -348,7 +386,7 @@ async function checkout(){
  // Check the server, not a remembered username in frontend state.
  const session=await verifySession();
  if(!session){
-  user=null;$('accountLabel').textContent='SIGN IN';
+  user=null;syncAccountButtons();
   closeCart();
   if(!await login())return;
  }
@@ -397,7 +435,11 @@ async function checkout(){
 function bind(){
  $('year').textContent=new Date().getFullYear();
  $('cartBtn').onclick=openCart;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
- $('accountBtn').onclick=accountAction;$('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
+ $('accountBtn').onclick=accountAction;
+ $('signInBtn').onclick=()=>login('LOGIN');
+ $('registerBtn').onclick=()=>login('SIGNUP');
+ $('logoutBtn').onclick=logout;
+ $('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
  $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
  $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchDebounce);$('searchGo').click()}});
@@ -408,5 +450,5 @@ function bind(){
  $('clearFilters').onclick=()=>{searchText='';$('search').value='';$('cityFilter').value='';$('priceFilter').value='';setCategory('All')};
  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCart()});
 }
-bind();loadCatalog().then(loadSession).then(resumeStripeCheckout);
+bind();syncAccountButtons();loadCatalog().then(loadSession).then(resumeStripeCheckout);
 })();

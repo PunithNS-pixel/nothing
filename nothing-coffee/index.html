@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#121b30">
   <meta name="description" content="Nothing Market — shop electronics, fashion, essentials and more across India.">
   <title>NOTHING MARKET | Everything you need, nothing you don't.</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <link rel="stylesheet" href="styles.css?v=3">
+  <script src="app.js?v=3" defer></script>
 </head>
 <body>
   <div class="announcement">FREE DELIVERY ABOVE ₹999 <span>✦</span> SHOP THE NEW EVERYDAY</div>
@@ -22,7 +22,10 @@
       <span class="india-tag">🇮🇳 INDIA</span>
       <button id="retailerBtn" class="nav-button retailer-nav">▤ <span>RETAILERS</span></button>
       <button id="adminRetailersBtn" class="nav-button" hidden>APPROVALS</button>
-      <button id="accountBtn" class="nav-button">♙ <span id="accountLabel">SIGN IN</span></button>
+      <button id="signInBtn" class="nav-button login-action">SIGN IN</button>
+      <button id="registerBtn" class="nav-button signup-action">CREATE ACCOUNT</button>
+      <button id="accountBtn" class="nav-button account-action" hidden>♙ <span id="accountLabel">ACCOUNT</span></button>
+      <button id="logoutBtn" class="nav-button logout-action" hidden>SIGN OUT</button>
       <button id="ordersBtn" class="nav-button">◎ <span>ORDERS</span></button>
       <button id="cartBtn" class="cart-launch">BAG <span id="cartCount">0</span></button>
     </div>
