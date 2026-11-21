@@ -70,3 +70,11 @@ The seed now contains **46 named items** across Electronics, Home & Living, Fash
 For local Docker use `git pull origin backend` then `docker compose -f backend/compose.yml --env-file backend/.env up -d --build --force-recreate app frontend`. Open `http://localhost:8000/api/store/catalog` to inspect live PostgreSQL product data. The storefront now routes API requests on the same origin (`/api`), rather than contacting port 8090 from the browser, to keep authentication cookies consistent.
 
 COD now keeps the successful order confirmation separate from the subsequent optional catalog/order-history refresh. Stripe is offered only when `/api/checkout/stripe/config` confirms both configured Stripe test credentials, and it still requires an actual signed test webhook before an order is fulfilled. Do not use production Stripe keys before reconciliation/refund handling is complete.
+
+## Storefront login and image improvements
+
+Visitors now have separate **SIGN IN** and **CREATE ACCOUNT** buttons. Signed-in customers have **ACCOUNT** and one-click **SIGN OUT** buttons. Signing out clears the in-browser bag so the next visitor cannot see another customer's selection; the database cart stays associated with the original account. No one needs to type \u0060LOGOUT\u0060.
+
+Product cards use individually chosen Unsplash photos where available, with distinct product-specific illustrations and descriptive labels for the remaining products. If an external image cannot load, the illustration automatically replaces it. The demo photos are representative, not photographs of actual fulfilment inventory or proof of product branding. Marketplace pictures from Amazon/Flipkart were **not** copied or hotlinked. The Unsplash License is at https://unsplash.com/license. For real sales, sellers should upload photographs of the specific products they will ship.
+
+After pulling this commit, run \u0060docker compose -f backend/compose.yml --env-file backend/.env up -d --build --force-recreate app frontend\u0060. Catalog seeding only fills missing photo URLs and never overwrites established images or quantity values. Refresh \u0060http://localhost:8000\u0060 with Ctrl+Shift+R.

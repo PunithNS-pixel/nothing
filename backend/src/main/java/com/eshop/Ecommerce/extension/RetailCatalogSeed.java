@@ -129,6 +129,8 @@ public class RetailCatalogSeed {
      case "Gentle Shampoo 300ml" -> "https://images.unsplash.com/photo-1762827990160-9f2d35fb0fd5?auto=format&fit=crop&w=800&q=82";
      case "Lip Balm Variety Pack" -> "https://images.unsplash.com/photo-1692873634623-142b360483d6?auto=format&fit=crop&w=800&q=82";
      case "Daily Body Lotion 400ml" -> "https://images.unsplash.com/photo-1771481103879-dd0e658fd7be?auto=format&fit=crop&w=800&q=82";
+     case "Stackable Storage Boxes" -> "https://images.unsplash.com/photo-1786396798357-ac8ba6704d89?auto=format&fit=crop&w=800&q=82";
+     case "Aloe Vera Moisturizer 100ml" -> "https://images.unsplash.com/photo-1774620714979-2c258294fa48?auto=format&fit=crop&w=800&q=82";
      default -> null;
    };
  }
