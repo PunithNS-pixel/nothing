@@ -332,6 +332,8 @@ async function loadSession(){
  $('adminRetailersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  $('adminOrdersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  $('adminRequestsBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
+ $('adminInventoryBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
+ $('sellerInventoryBtn').hidden=!(session?.roles||[]).includes('ROLE_SELLER');
  await loadRetailerStatus();await applyFilters();await loadServerCart();
 }
 function showDialog(title,fields,button='CONTINUE'){
@@ -413,6 +415,8 @@ async function login(mode=null){
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   $('adminOrdersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   $('adminRequestsBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
+  $('adminInventoryBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
+  $('sellerInventoryBtn').hidden=!(session.roles||[]).includes('ROLE_SELLER');
   await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
@@ -430,6 +434,8 @@ async function logout(){
  $('adminRetailersBtn').hidden=true;
  $('adminOrdersBtn').hidden=true;
  $('adminRequestsBtn').hidden=true;
+ $('adminInventoryBtn').hidden=true;
+ $('sellerInventoryBtn').hidden=true;
  // Do not transfer one customer's bag to the next shopper on the same device.
  localStorage.removeItem('nothing-guest-cart');
  syncAccountButtons();await applyFilters();updateCart();
@@ -1008,6 +1014,105 @@ async function reviewAfterSaleRequests(){
  }catch(e){notify('Approval queue unavailable: '+e.message,true)}
 }
 
+
+async function changeInventory(productId,seller,type){
+ const fields=type==='stock'?
+  [{name:'quantity',label:'NEW STOCK QUANTITY (0 TO 1,000,000)',type:'number',placeholder:'50'}]:
+  [{name:'percent',label:'PRODUCT DISCOUNT PERCENT (0 TO 80)',type:'number',placeholder:'10'}];
+ const value=await showDialog(type==='stock'?'UPDATE INVENTORY':'CHANGE PRODUCT DISCOUNT',fields,'SAVE CHANGES');
+ if(!value)return;
+ const n=Number(type==='stock'?value.quantity:value.percent);
+ if(!Number.isFinite(n)||n<0||n>(type==='stock'?1000000:80)||(type==='stock'&&!Number.isInteger(n))){
+  notify('Enter a valid quantity or discount within the displayed limits.',true);return;
+ }
+ try{
+  const section=seller?'seller':'admin';
+  await request('/api/'+section+'/products/'+encodeURIComponent(productId)+'/'+type,{
+   method:'PUT',body:JSON.stringify(type==='stock'?{quantity:n}:{percent:n})
+  });
+  notify('Inventory changes saved in PostgreSQL.');
+  await loadCatalog();await showInventoryPanel(seller);
+ }catch(e){notify('Inventory update failed: '+e.message,true)}
+}
+async function createInventoryListing(seller){
+ try{
+  const response=await request('/api/public/categories?pageNumber=0&pageSize=100');
+  const categories=Array.isArray(response.content)?response.content:[];
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent='CHOOSE A PRODUCT CATEGORY';root.append(heading);
+  for(const category of categories){
+   const b=document.createElement('button');b.type='button';b.className='address-option';
+   b.textContent=category.categoryName;
+   b.onclick=async()=>{
+    d.close();
+    const fields=[
+     {name:'productName',label:'PRODUCT NAME (MINIMUM 3 CHARACTERS)',placeholder:'Portable Wireless Headphones'},
+     {name:'description',label:'PRODUCT DESCRIPTION (10+ CHARACTERS)',placeholder:'Comfortable Bluetooth headphones with USB-C charging'},
+     {name:'brand',label:'BRAND',placeholder:'NOTHING SELECT'},
+     {name:'city',label:'CITY',placeholder:'Bengaluru'},
+     {name:'price',label:'LIST PRICE IN INR',type:'number',placeholder:'1999'},
+     {name:'quantity',label:'INITIAL STOCK',type:'number',placeholder:'20'},
+     {name:'image',label:'HTTPS PRODUCT IMAGE URL (OPTIONAL)',required:false,placeholder:'https://...'}
+    ];
+    const input=await showDialog('ADD NEW LISTING',fields,'SAVE PRODUCT');
+    if(!input)return;
+    const price=Number(input.price),quantity=Number(input.quantity);
+    if(price<=0||!Number.isFinite(price)||!Number.isInteger(quantity)||quantity<0||
+       input.productName.length<3||input.description.length<10||quantity>1000000){
+     notify('Enter a valid name, description, positive price and nonnegative stock.',true);return;
+    }
+    if(input.image&&!/^https:\/\//.test(input.image)){notify('Image URLs must use HTTPS.',true);return}
+    const payload={...input,price,quantity,specialPrice:price,discount:0};
+    try{
+     const group=seller?'seller':'admin';
+     await request('/api/'+group+'/categories/'+encodeURIComponent(category.categoryId)+'/product',
+      {method:'POST',body:JSON.stringify(payload)});
+     notify('New listing saved to PostgreSQL.');
+     await loadCatalog();await showInventoryPanel(seller);
+    }catch(e){notify('Product creation failed: '+e.message,true)}
+   };
+   root.append(b);
+  }
+  const close=document.createElement('button');close.type='button';close.className='outline-button';close.textContent='CLOSE';
+  close.onclick=()=>d.close();root.append(close);d.showModal();
+ }catch(e){notify('Categories unavailable: '+e.message,true)}
+}
+async function showInventoryPanel(seller){
+ try{
+  const group=seller?'seller':'admin';
+  const data=await request('/api/'+group+'/products?pageNumber=0&pageSize=50');
+  const products=Array.isArray(data.products)?data.products:[];
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent=seller?'SELLER INVENTORY':'MARKETPLACE INVENTORY';
+  root.append(heading);
+  const info=document.createElement('p');info.textContent='Manage stock and discounts directly in PostgreSQL. Listed prices and cart totals are recalculated by Spring Boot.';
+  root.append(info);
+  const create=document.createElement('button');create.type='button';create.className='primary-choice';
+  create.textContent='+ ADD PRODUCT TO CATALOG';create.onclick=()=>{d.close();createInventoryListing(seller)};
+  root.append(create);
+  if(!products.length){const empty=document.createElement('p');empty.textContent='No products found for this account.';root.append(empty)}
+  for(const product of products){
+   const id=product.productId??product.ProductId;
+   if(!id)continue;
+   const row=document.createElement('section');row.className='review-card';
+   const name=document.createElement('strong');
+   name.textContent=(product.productName??product.ProductName??'Product')+' · SKU #'+id;
+   const desc=document.createElement('p');
+   desc.textContent='Stock: '+(product.quantity??0)+' · Price: '+money(product.specialPrice??product.price??0)+
+    ' · Discount: '+(product.discount??0)+'%';
+   const actions=document.createElement('div');actions.className='actions';
+   for(const [type,label] of [['stock','SET STOCK'],['discount','SET DISCOUNT']]){
+    const b=document.createElement('button');b.type='button';b.textContent=label;
+    b.onclick=()=>{d.close();changeInventory(id,seller,type)};
+    actions.append(b);
+   }
+   row.append(name,desc,actions);root.append(row);
+  }
+  const close=document.createElement('button');close.type='button';close.className='outline-button';close.textContent='CLOSE';
+  close.onclick=()=>d.close();root.append(close);d.showModal();
+ }catch(e){notify('Inventory unavailable: '+e.message,true)}
+}
+
 function bind(){
  $('year').textContent=new Date().getFullYear();
  $('cartBtn').onclick=openCart;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
@@ -1019,6 +1124,8 @@ function bind(){
  $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
  $('adminOrdersBtn').onclick=showFulfillmentPanel;
  $('adminRequestsBtn').onclick=reviewAfterSaleRequests;
+ $('adminInventoryBtn').onclick=()=>showInventoryPanel(false);
+ $('sellerInventoryBtn').onclick=()=>showInventoryPanel(true);
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
  $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchDebounce);$('searchGo').click()}});
  $('search').addEventListener('input',()=>{clearTimeout(searchDebounce);searchDebounce=setTimeout(()=>{searchText=$('search').value.trim();applyFilters()},350)});
