@@ -94,7 +94,10 @@ class CustomerBrowserCheckoutTest {
   mvc.perform(get("/api/customer/orders").cookie(jwt))
    .andExpect(status().isOk())
    .andExpect(jsonPath("$[0].orderId").value(orderId))
-   .andExpect(jsonPath("$[0].totalAmount").value(500.0));
+   .andExpect(jsonPath("$[0].totalAmount").value(500.0))
+   .andExpect(jsonPath("$[0].payment.paymentMethod").value("CASH_ON_DELIVERY"))
+   .andExpect(jsonPath("$[0].orderItems[0].quantity").value(2))
+   .andExpect(jsonPath("$[0].orderItems[0].product.productName").value("Checkout item "+suffix));
 
   // Never expose order history to an anonymous user.
   mvc.perform(get("/api/customer/orders")).andExpect(status().isUnauthorized());

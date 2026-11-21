@@ -436,19 +436,42 @@ async function reviewRetailers(){
  }catch(e){notify('Approval queue unavailable: '+e.message,true)}
 }
 async function showOrders(){
- if(!user){if(!await login())return}
+ if(!user){if(!await login('LOGIN'))return}
  try{
   const data=await request('/api/customer/orders');
   const orders=Array.isArray(data)?data:[];
   const root=$('modalContent');root.replaceChildren();
-  const title=document.createElement('h2');title.textContent='YOUR ORDERS';root.append(title);
-  if(!orders.length){const p=document.createElement('p');p.textContent='No orders yet. Your next favorite find awaits!';root.append(p)}
-  for(const o of orders){
-   const row=document.createElement('div');row.style.cssText='padding:16px 0;border-bottom:1px solid #ddd';
-   const h=document.createElement('strong');h.textContent='Order #'+o.orderId+' · '+money(o.totalAmount);
-   const p=document.createElement('p');p.textContent=(o.orderDate||'')+' · '+(o.orderStatus||'Placed');row.append(h,p);root.append(row);
+  const title=document.createElement('h2');title.textContent='MY ORDERS';
+  root.append(title);
+  const p=document.createElement('p');p.textContent=orders.length
+   ?orders.length+' order'+(orders.length===1?'':'s')+' on your account'
+   :'No orders placed yet. Your next great find is waiting.';
+  root.append(p);
+  for(const order of orders){
+   const row=document.createElement('section');row.className='order-history-card';
+   const h=document.createElement('h3');
+   h.textContent='Order #'+order.orderId+' · '+money(order.totalAmount);
+   row.append(h);
+   const meta=document.createElement('p');
+   const method=order.payment?.paymentMethod==='CASH_ON_DELIVERY'?'Cash on delivery'
+     :order.payment?.paymentMethod==='STRIPE'?'Stripe paid online':'Payment method unavailable';
+   const paymentState=order.payment?.pgStatus==='PAID'?'Paid'
+     :method==='Cash on delivery'?'Pay on delivery':'Payment pending verification';
+   meta.textContent=(order.orderDate||'Date pending')+' · '+(order.orderStatus||'Accepted')
+     +' · '+method+' · '+paymentState;
+   row.append(meta);
+   for(const item of order.orderItems||[]){
+    const name=item.product?.productName||'Purchased item';
+    const entry=document.createElement('div');entry.className='order-history-line';
+    const title=document.createElement('span');title.textContent=name+' × '+item.quantity;
+    const amount=document.createElement('strong');amount.textContent=money(item.orderedProductPrice*item.quantity);
+    entry.append(title,amount);row.append(entry);
+   }
+   root.append(row);
   }
-  const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>$('modal').close();root.append(close);$('modal').showModal();
+  const close=document.createElement('button');close.className='outline-button';
+  close.textContent='CLOSE';close.onclick=()=>$('modal').close();
+  root.append(close);$('modal').showModal();
  }catch(e){notify('Order history is temporarily unavailable: '+e.message,true)}
 }
 async function choosePaymentMethod(total){
