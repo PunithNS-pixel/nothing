@@ -3,6 +3,7 @@ import com.eshop.Ecommerce.Model.Product;
 import com.eshop.Ecommerce.Repositories.ProductRepo;
 import com.eshop.Ecommerce.Repositories.CategoryRepo;
 import com.eshop.Ecommerce.Repositories.OrderRepo;
+import com.eshop.Ecommerce.Repositories.ProductGalleryImageRepository;
 import com.eshop.Ecommerce.Util.AuthUtil;
 import com.eshop.Ecommerce.Payload.OrderDTO;
 import org.modelmapper.ModelMapper;
@@ -12,20 +13,26 @@ import java.util.*;
 public class RetailStoreController {
  private final ProductRepo products;private final CategoryRepo categories;
  private final OrderRepo orders;private final AuthUtil auth;private final ModelMapper mapper;
- public RetailStoreController(ProductRepo products,CategoryRepo categories,OrderRepo orders,AuthUtil auth,ModelMapper mapper){
- this.products=products;this.categories=categories;this.orders=orders;this.auth=auth;this.mapper=mapper;
+ private final ProductGalleryImageRepository photoGallery;
+ public RetailStoreController(ProductRepo products,CategoryRepo categories,OrderRepo orders,AuthUtil auth,ModelMapper mapper,ProductGalleryImageRepository photoGallery){
+ this.products=products;this.categories=categories;this.orders=orders;this.auth=auth;this.mapper=mapper;this.photoGallery=photoGallery;
  }
  @GetMapping("/api/store/catalog")
  public List<Map<String,Object>> catalog(){
-  return products.findAll().stream().filter(p->p.getQuantity()!=null && (p.getCategory()==null || !"Coffee".equalsIgnoreCase(p.getCategory().getCategoryName()))).map(this::publicProduct).toList();
+  Map<Long,List<String>> gallery=new HashMap<>();
+  for(var photo:photoGallery.findAllByOrderByDisplayOrderAsc()){
+   gallery.computeIfAbsent(photo.getProduct().getProductId(),id->new ArrayList<>()).add(photo.getImageUrl());
+  }
+  return products.findAll().stream().filter(p->p.getQuantity()!=null && (p.getCategory()==null || !"Coffee".equalsIgnoreCase(p.getCategory().getCategoryName())))
+   .map(p->publicProduct(p,gallery.getOrDefault(p.getProductId(),List.of()))).toList();
  }
- private Map<String,Object> publicProduct(Product p){
+ private Map<String,Object> publicProduct(Product p,List<String> additionalImages){
   Map<String,Object> item=new LinkedHashMap<>();
   item.put("productId",p.getProductId());item.put("name",p.getProductName());item.put("description",p.getDescription());
   item.put("price",p.getSpecialPrice());item.put("originalPrice",p.getPrice());
   item.put("stock",p.getQuantity());item.put("city",p.getCity());
   item.put("category",p.getCategory()==null?"Other":p.getCategory().getCategoryName());
-  item.put("image",p.getImage());return item;
+  item.put("image",p.getImage());item.put("images",additionalImages);return item;
  }
  @GetMapping("/api/store/categories")
  public List<String> categories(){
