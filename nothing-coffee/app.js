@@ -224,27 +224,40 @@ function renderDeals(){
  bindImageFallbacks($('dealGrid'));
  $('dealGrid').querySelectorAll('[data-deal-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.dealAdd));
 }
+function matchingCatalog(products,{category:cat,city,range,query}){
+ const [min,max]=range?range.split('-').map(Number):[null,null];
+ const needle=(query||'').trim().toLowerCase();
+ return products.filter(p=>
+  (cat==='All'||p.category===cat)&&
+  (!city||p.city===city)&&
+  (!range||(p.price>=min&&p.price<=max))&&
+  (!needle||[p.name,p.description,p.category,p.city].some(v=>String(v||'').toLowerCase().includes(needle)))
+ );
+}
 async function applyFilters(){
  const sequence=++searchRequestSeq;
- let products=catalog.slice();
  const city=$('cityFilter').value,range=$('priceFilter').value,sort=$('sortFilter').value;
- const [min,max]=range?range.split('-').map(Number):[null,null];
+ const matches=matchingCatalog(catalog,{category,city,range,query:searchText});
+ let products=matches;
  if(searchText||category!=='All'||city||range){
   const params=new URLSearchParams({q:searchText,size:'100'});
   if(category!=='All')params.set('category',category);
   if(city)params.set('city',city);
-  if(range){params.set('minPrice',String(min));params.set('maxPrice',String(max))}
-  $('sourceStatus').textContent='● SEARCHING OPENSEARCH…';
+  if(range){const [min,max]=range.split('-');params.set('minPrice',min);params.set('maxPrice',max)}
+  $('sourceStatus').textContent='● SEARCHING LIVE INVENTORY…';
   try{
    const data=await request('/api/search/products?'+params);
    if(sequence!==searchRequestSeq)return;
-   const ids=new Set((data.hits?.hits||[]).map(hit=>String(hit._source?.productId)));
-   products=catalog.filter(p=>ids.has(String(p.productId)));
-   $('sourceStatus').textContent='● OPENSEARCH RESULTS';
+   const hits=(data.hits?.hits||[]).map(hit=>String(hit._source?.productId));
+   const ids=new Set(hits);
+   const ranked=catalog.filter(p=>ids.has(String(p.productId)));
+   products=ranked.concat(matches.filter(p=>!ids.has(String(p.productId))));
+   $('sourceStatus').textContent=ranked.length?'● OPENSEARCH + LIVE POSTGRESQL':'● LIVE POSTGRESQL MATCHES';
   }catch(e){
    if(sequence!==searchRequestSeq)return;
-   notify('Search is temporarily unavailable: '+e.message,true);
-   products=[];$('sourceStatus').textContent='● SEARCH UNAVAILABLE';
+   products=matches;
+   $('sourceStatus').textContent='● POSTGRESQL SEARCH FALLBACK';
+   console.warn('OpenSearch unavailable; PostgreSQL results shown:',e.message);
   }
  }else $('sourceStatus').textContent='● LIVE POSTGRESQL INVENTORY';
  if(sequence!==searchRequestSeq)return;
@@ -431,7 +444,8 @@ function syncAccountButtons(){
  closeAccountMenu();
 }
 async function logout(){
- try{await request('/api/auth/signout',{method:'POST'})}catch(e){console.warn('Sign-out request:',e)}
+ try{await request('/api/auth/signout',{method:'POST'})}
+ catch(e){notify('Could not sign out securely: '+e.message,true);return}
  user=null;cart={};wishlistIds=new Set();retailerStatus='NOT_APPLIED';retailerDiscount=0;
  $('adminRetailersBtn').hidden=true;
  // Do not transfer one customer's bag to the next shopper on the same device.
@@ -536,31 +550,6 @@ async function showOrders(){
   root.append(close);$('modal').showModal();
  }catch(e){notify('Order history is temporarily unavailable: '+e.message,true)}
 }
-async function choosePaymentMethod(total){
- let stripeReady=false;
- try{const config=await request('/api/checkout/stripe/config');stripeReady=config.enabled===true}catch{}
- return new Promise(resolve=>{
-  const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
-  const h=document.createElement('h2');h.textContent='HOW WOULD YOU LIKE TO PAY?';
-  const p=document.createElement('p');p.textContent='Order total: '+money(total);
-  root.append(h,p);
-  const choices=document.createElement('div');choices.className='account-choices';root.append(choices);
-  let finished=false;
-  const done=v=>{if(finished)return;finished=true;dialog.close();resolve(v)};
-  for(const [method,label] of [['COD','CASH ON DELIVERY'],['STRIPE','PAY SECURELY WITH STRIPE']]){
-   const b=document.createElement('button');b.type='button';b.className='primary-choice';
-   b.textContent=label;
-   if(method==='STRIPE'&&!stripeReady){
-    b.disabled=true;b.title='Configure Stripe test key and webhook secret first';
-    b.textContent='STRIPE TEST PAYMENT — CONFIGURATION REQUIRED';
-   }
-   b.onclick=()=>done(method);choices.append(b);
-  }
-  const cancel=document.createElement('button');cancel.className='outline-button';
-  cancel.textContent='CANCEL';cancel.onclick=()=>done(null);root.append(cancel);
-  dialog.oncancel=e=>{e.preventDefault();done(null)};dialog.showModal();
- });
-}
 async function resumeStripeCheckout(){
  const url=new URL(location.href),state=url.searchParams.get('checkout');
  if(!state)return;
@@ -644,19 +633,6 @@ async function selectDeliveryAddress(){
   const saved=await editAddress(selection.action==='edit'?selection.address:null);
   if(saved)return saved;
  }
-}
-function confirmAction(title,message,label='CONFIRM'){
- return new Promise(resolve=>{
-  const d=$('modal'),root=$('modalContent');root.replaceChildren();
-  const h=document.createElement('h2');h.textContent=title;
-  const p=document.createElement('p');p.textContent=message;p.className='confirmation-summary';
-  const actions=document.createElement('div');actions.className='actions';
-  let done=false;const finish=value=>{if(done)return;done=true;d.close();resolve(value)};
-  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='CANCEL';cancel.onclick=()=>finish(false);
-  const submit=document.createElement('button');submit.type='button';submit.className='primary';submit.textContent=label;submit.onclick=()=>finish(true);
-  actions.append(cancel,submit);root.append(h,p,actions);
-  d.oncancel=e=>{e.preventDefault();finish(false)};d.showModal();
- });
 }
 async function showAccountOverview(){
  if(!user){await login('LOGIN');return}
@@ -905,9 +881,11 @@ function showCheckoutWizard(){
   }catch(e){notify('Could not start checkout: '+e.message,true);resolve()}
  });
 }
+let checkoutOpening=false;
 async function checkout(){
- if(cartBusy)return;
+ if(cartBusy||checkoutOpening)return;
  if(!checkoutSummary().count){notify('Add a product before checking out.',true);return}
+ checkoutOpening=true;
  try{
   const current=await verifySession();
   if(!current){
@@ -919,6 +897,7 @@ async function checkout(){
   closeCart();
   await showCheckoutWizard();
  }catch(e){notify('Checkout could not start: '+e.message,true)}
+ finally{checkoutOpening=false}
 }
 
 
