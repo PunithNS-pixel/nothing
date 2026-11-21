@@ -138,6 +138,22 @@ public class OpenSearchCatalog {
   }
  }
 
+ /**
+  * Join only short, plain alphabetic fragments; never compact long natural
+  * language queries or symbols into an unrelated broad fuzzy term.
+  */
+ static String compactMisspellingCandidate(String raw){
+   if(raw==null)return null;
+   String[] tokens=raw.trim().split("\\s+");
+   if(tokens.length<2||tokens.length>3)return null;
+   int length=0;
+   for(String token:tokens){
+     if(token.length()<2||!token.matches("[\\p{L}\\p{N}]+"))return null;
+     length+=token.length();
+   }
+   return length>=6&&length<=24 ? String.join("",tokens) : null;
+ }
+
  static Map<String,Object> searchRequest(String q,String category,Double min,Double max,
                                          String city,int page,int size){
   if(page<0||size<1||size>100||(long)page*size>10000)
@@ -159,14 +175,23 @@ public class OpenSearchCatalog {
   else{
    // Exact/full-word, typo-tolerant, prefix and anywhere-in-word matches.
    // "buds" -> "earbuds"; "bluetoth" -> "bluetooth".
-   List<Object> should=List.of(
-      Map.of("multi_match",Map.of("query",query,
-          "fields",List.of("productName^7","description^2"),
-          "fuzziness","AUTO","type","best_fields")),
-      Map.of("match",Map.of("searchText",Map.of("query",query,
-          "operator","and","boost",3))),
-      Map.of("match_phrase_prefix",Map.of("productName",Map.of("query",query,"boost",4)))
-   );
+   List<Object> should=new ArrayList<>();
+   should.add(Map.of("multi_match",Map.of("query",query,
+       "fields",List.of("productName^7","description^2"),
+       "fuzziness","AUTO","type","best_fields")));
+   should.add(Map.of("match",Map.of("searchText",Map.of("query",query,
+       "operator","and","boost",3))));
+   should.add(Map.of("match_phrase_prefix",Map.of("productName",Map.of("query",query,"boost",4))));
+   // Speech-to-text and casual typing frequently split one product term:
+   // "blue teuth" -> "blueteuth", which is two edits from "bluetooth".
+   // Preserve the original query AND try the compact form against OpenSearch.
+   // This is still a real fuzzy OpenSearch query, not hard-coded SQL fallback.
+   String compact=compactMisspellingCandidate(query);
+   if(compact!=null){
+     should.add(Map.of("multi_match",Map.of(
+       "query",compact,"fields",List.of("productName^8","description^2"),
+       "fuzziness",2,"prefix_length",1,"max_expansions",100,"type","best_fields")));
+   }
    must=Map.of("bool",Map.of("should",should,"minimum_should_match",1));
   }
   return Map.of("from",page*size,"size",size,"track_total_hits",true,

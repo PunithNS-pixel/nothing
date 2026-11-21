@@ -48,6 +48,19 @@ print("OPENSEARCH PASS",len(hits),"brand matches")
   if [ "$attempt" -eq 40 ]; then echo 'FAIL: PLAYLAB OpenSearch search';"${COMPOSE[@]}" logs --tail=100 opensearch app;exit 1;fi
   sleep 4
 done
+printf '\n[4b/8] Split-word fuzzy Bluetooth search regression\n'
+for attempt in $(seq 1 12); do
+  if curl -fsSG --max-time 15 "$BASE/api/search/products" --data-urlencode 'q=blue teuth' --data-urlencode size=100 | python3 -c '
+import json,sys
+result=json.load(sys.stdin)
+hits=result.get("hits",{}).get("hits",[])
+names=[h.get("_source",{}).get("productName","") for h in hits]
+assert any("bluetooth" in n.lower() for n in names),names
+print("TYPO-TOLERANT SEARCH PASS",names[:6])
+' 2>/dev/null;then break;fi
+  if [ "$attempt" -eq 12 ];then echo 'FAIL: OpenSearch split-word Bluetooth search';exit 1;fi
+  sleep 3
+done
 printf '\n[5/8] Auth boundary\n'
 code="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/api/auth/user")"
 [ "$code" = '401' ] || { echo "expected unauthenticated 401, got $code";exit 1; }

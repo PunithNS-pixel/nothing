@@ -45,6 +45,17 @@ class OpenSearchQueryTest {
     ()->OpenSearchCatalog.searchRequest("buds",null,1000.0,100.0,null,0,20));
  }
 
+ @Test
+ void splitBluetoothMisspellingAddsACompactFuzzyClause(){
+  String json=toJson(OpenSearchCatalog.searchRequest("blue teuth",null,null,null,null,0,100));
+  assertEquals("blueteuth",OpenSearchCatalog.compactMisspellingCandidate("blue teuth"));
+  assertTrue(json.contains("\\"blueteuth\\""),json);
+  assertTrue(json.contains("\\"fuzziness\\":2"),json);
+  assertTrue(json.contains("\\"minimum_should_match\\":1"),json);
+  assertNull(OpenSearchCatalog.compactMisspellingCandidate("blue"));
+  assertNull(OpenSearchCatalog.compactMisspellingCandidate("laptop gaming keyboard headphones"));
+ }
+
  private String toJson(Object value){
   try{return mapper.writeValueAsString(value);}
   catch(Exception ex){throw new AssertionError(ex);}
