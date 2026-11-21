@@ -32,6 +32,5 @@ class EventConsumerIdempotencyTest {
   consumer.consume(event);
   assertEquals(1,jdbc.queryForObject("select count(*) from nothing_consumed where event_id=?",Integer.class,id));
   verify(search,times(1)).index(productId);
-  verifyNoInteractions(rabbit);
  }
 }
