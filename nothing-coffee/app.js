@@ -194,6 +194,11 @@ async function applyFilters(){
 function setCategory(name){
  category=name;
  document.querySelectorAll('[data-category]').forEach(x=>x.classList.toggle('active',x.dataset.category===name));
+ document.querySelectorAll('.category-rail-item[data-category-nav]').forEach(x=>{
+  const active=x.dataset.categoryNav===name;
+  x.classList.toggle('active',active);
+  x.setAttribute('aria-pressed',String(active));
+ });
  document.querySelector('#catalog').scrollIntoView({behavior:'smooth'});
  applyFilters();
 }
@@ -341,12 +346,27 @@ async function login(mode=null){
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
 }
+function closeAccountMenu(){
+ $('accountMenu').hidden=true;
+ $('accountBtn').setAttribute('aria-expanded','false');
+}
+function toggleAccountMenu(){
+ const menu=$('accountMenu');
+ const open=menu.hidden;
+ menu.hidden=!open;
+ $('accountBtn').setAttribute('aria-expanded',String(open));
+}
 function syncAccountButtons(){
- $('signInBtn').hidden=!!user;
- $('registerBtn').hidden=!!user;
- $('accountBtn').hidden=!user;
- $('logoutBtn').hidden=!user;
- $('accountLabel').textContent=user?user.toUpperCase():'ACCOUNT';
+ // A single Login/Account menu, with working actions for either account state.
+ $('signInBtn').hidden=true;
+ $('registerBtn').hidden=true;
+ $('accountBtn').hidden=false;
+ $('logoutBtn').hidden=true;
+ $('accountLabel').textContent=user?user.toUpperCase():'LOGIN';
+ $('menuWelcome').textContent=user?'Hello, '+user+'!':'New customer? Create your account';
+ $('accountMenu').querySelector('.menu-guest').hidden=!!user;
+ $('accountMenu').querySelector('.menu-member').hidden=!user;
+ closeAccountMenu();
 }
 async function logout(){
  try{await request('/api/auth/signout',{method:'POST'})}catch(e){console.warn('Sign-out request:',e)}
@@ -825,10 +845,20 @@ function bind(){
  $('bottomCategoriesBtn').onclick=()=>{$('categories').scrollIntoView({behavior:'smooth'})};
  $('bottomDealsBtn').onclick=()=>{$('deals').scrollIntoView({behavior:'smooth'})};
  $('bottomAccountBtn').onclick=accountAction;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
- $('accountBtn').onclick=accountAction;
+ $('accountBtn').onclick=toggleAccountMenu;
  $('signInBtn').onclick=()=>login('LOGIN');
  $('registerBtn').onclick=()=>login('SIGNUP');
  $('logoutBtn').onclick=logout;
+ $('menuLogin').onclick=()=>{closeAccountMenu();login('LOGIN')};
+ $('menuRegister').onclick=()=>{closeAccountMenu();login('SIGNUP')};
+ $('menuProfile').onclick=()=>{closeAccountMenu();showAccountOverview()};
+ $('menuAddresses').onclick=()=>{closeAccountMenu();showAccountOverview()};
+ $('menuOrders').onclick=()=>{closeAccountMenu();showOrders()};
+ $('menuRetailer').onclick=()=>{closeAccountMenu();retailerAction()};
+ $('menuLogout').onclick=()=>{closeAccountMenu();logout()};
+ document.addEventListener('click',e=>{
+  if(!$('accountMenu').hidden && !e.target.closest('.account-header-menu'))closeAccountMenu();
+ });
  $('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
  $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
@@ -838,7 +868,7 @@ function bind(){
  ['cityFilter','priceFilter','sortFilter'].forEach(id=>$(id).onchange=applyFilters);
  document.querySelectorAll('[data-category-nav]').forEach(el=>el.onclick=()=>setCategory(el.dataset.categoryNav));
  $('clearFilters').onclick=()=>{searchText='';$('search').value='';$('cityFilter').value='';$('priceFilter').value='';setCategory('All')};
- document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCart()});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeCart();closeAccountMenu()}});
 }
 bind();syncAccountButtons();loadCatalog().then(loadSession).then(resumeStripeCheckout);
 })();
