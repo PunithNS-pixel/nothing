@@ -541,8 +541,8 @@ async function selectDeliveryAddress(addresses){
   const done=value=>{if(finished)return;finished=true;d.close();resolve(value)};
   for(const a of addresses){
    const b=document.createElement('button');b.type='button';b.className='address-option';
-   b.textContent=[a.buildingName,a.street,a.city,a.state,a.pincode].filter(Boolean).join(' · ');
-   b.onclick=()=>done(a);list.append(b);
+   b.textContent=[a.buildingName,a.street,a.city,a.state,a.pincode,a.phoneNumber?('☎ '+a.phoneNumber):'MOBILE NUMBER REQUIRED'].filter(Boolean).join(' · ');
+   b.disabled=!/^[6-9][0-9]{9}$/.test(a.phoneNumber||'');b.onclick=()=>done(a);list.append(b);
   }
   const add=document.createElement('button');add.type='button';add.className='primary-choice';
   add.textContent='+ ADD A NEW ADDRESS';add.onclick=()=>done(null);root.append(add);
@@ -577,11 +577,13 @@ async function checkout(){
     {name:'city',label:'CITY',placeholder:'Bengaluru'},
     {name:'state',label:'STATE',placeholder:'Karnataka'},
     {name:'country',label:'COUNTRY',placeholder:'India'},
-    {name:'pincode',label:'POSTAL CODE',placeholder:'560001',minLength:5}
+    {name:'pincode',label:'POSTAL CODE',placeholder:'560001',minLength:5},
+    {name:'phoneNumber',label:'MOBILE NUMBER (10 DIGITS)',type:'tel',placeholder:'9876543210',minLength:10}
    ];
    const data=await showDialog('DELIVERY ADDRESS',fields,'SAVE ADDRESS');
    if(!data)return;
    if(!/^[1-9][0-9]{5}$/.test(data.pincode))throw new Error('Enter a valid six-digit Indian PIN code');
+   if(!/^[6-9][0-9]{9}$/.test(data.phoneNumber))throw new Error('Enter a valid ten-digit Indian mobile number');
    checkoutStage='saving delivery address';
    address=await request('/api/addresses',{method:'POST',body:JSON.stringify(data)});
   }
