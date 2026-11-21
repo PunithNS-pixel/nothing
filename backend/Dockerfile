@@ -4,6 +4,9 @@ COPY pom.xml .
 COPY src ./src
 RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre
+# Used exclusively by Docker's local liveness/readiness probe.
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /workspace/target/*.jar /app/app.jar
 USER 10001:10001
