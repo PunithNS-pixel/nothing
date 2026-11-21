@@ -2,6 +2,7 @@ package com.eshop.Ecommerce.extension;
 
 import com.eshop.Ecommerce.Model.*;
 import com.eshop.Ecommerce.Repositories.OrderRepo;
+import com.eshop.Ecommerce.Repositories.ProductRepo;
 import com.eshop.Ecommerce.Repositories.OrderTrackingEventRepository;
 import com.eshop.Ecommerce.Util.AuthUtil;
 import jakarta.validation.constraints.*;
@@ -18,8 +19,12 @@ public class OrderTrackingService {
     private final OrderRepo orders;
     private final OrderTrackingEventRepository events;
     private final AuthUtil auth;
-    public OrderTrackingService(OrderRepo orders, OrderTrackingEventRepository events, AuthUtil auth){
+    private final ProductRepo products;
+    private final DomainEvents domainEvents;
+    public OrderTrackingService(OrderRepo orders, OrderTrackingEventRepository events,
+        AuthUtil auth, ProductRepo products, DomainEvents domainEvents){
         this.orders=orders;this.events=events;this.auth=auth;
+        this.products=products;this.domainEvents=domainEvents;
     }
 
     public record UpdateRequest(
@@ -137,6 +142,21 @@ public class OrderTrackingService {
         }
         if(request.estimatedDeliveryDate()!=null)
             order.setEstimatedDeliveryDate(request.estimatedDeliveryDate());
+        if(next==OrderTrackingStage.CANCELLED){
+            Payment payment=order.getPayment();
+            // Only unpaid COD can be cancelled here. A paid Stripe order needs a
+            // verified refund workflow; no shipping status can claim money returned.
+            if(payment==null || !"CASH_ON_DELIVERY".equalsIgnoreCase(payment.getPaymentMethod()) ||
+               !"PENDING".equalsIgnoreCase(payment.getPgStatus()))
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Prepaid orders require a verified refund; contact store support");
+            for(OrderItem item:order.getOrderItems()){
+                if(item.getProduct()==null || item.getQuantity()==null || item.getQuantity()<1 ||
+                   products.releaseStock(item.getProduct().getProductId(),item.getQuantity())!=1)
+                    throw new IllegalStateException("Could not restore cancelled inventory");
+                domainEvents.record("INVENTORY_CHANGED",item.getProduct().getProductId(),order.getOrderId());
+            }
+        }
         order.setOrderStatus(next.name());
         OrderTrackingEvent event=new OrderTrackingEvent();
         event.setOrder(order);event.setStage(next);event.setNote(request.note()==null?null:request.note().trim());
