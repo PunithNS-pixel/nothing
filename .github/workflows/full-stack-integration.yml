@@ -27,6 +27,8 @@ jobs:
         run: docker compose exec -T api python -m scripts.seed
       - name: Verify user checkout, Kafka, OpenSearch, RabbitMQ, Prometheus and Grafana
         run: bash scripts/verify.sh
+      - name: Repair missing Sugar Free document in a nonempty search index
+        run: docker compose exec -T api python -m scripts.test_search_repair
       - name: Concurrent last-unit checkout (PostgreSQL locking)
         run: docker compose exec -T api python -m scripts.concurrency_check
       - name: Check gateway resolves a newly recreated API container

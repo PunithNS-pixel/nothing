@@ -7,7 +7,7 @@ def main():
     with SessionLocal() as db:
         c=client()
         try:
-            total=reindex_all(c,db,reset=True)
-            print(f'OpenSearch index rebuilt: {total} products (including inactive)')
+            total=reindex_all(c,db,reset=False)
+            print(f'OpenSearch index reconciled (non-destructive): {total} products (including inactive)')
         finally: c.close()
 if __name__=='__main__': main()

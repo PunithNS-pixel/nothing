@@ -232,3 +232,26 @@ The Stripe worker polls stuck/expired sessions, checks actual provider status, a
 
 For live deployment use a public HTTPS `PUBLIC_BASE_URL`, register `https://YOUR_DOMAIN/api/payments/stripe/webhook` in Stripe Dashboard with event types `checkout.session.completed`, `checkout.session.expired`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, and replace the CLI signing secret with that endpoint's secret. **Refunds, chargebacks, full payment reconciliation/alerting, taxes, GST-compliant invoices, actual cash collection, and a security review remain required for production.**
 
+
+## Search incident fix — partial indexes with 0 hits (Sugar Free)
+
+The previous health check only repaired OpenSearch when **the entire index** was empty. A partially populated index (Original, Green, etc., but no Sugar Free) returned `{"total":0,"items":[]}` indefinitely, even though PostgreSQL held the product. This update detects a **zero-hit search** and checks a bounded set of corresponding active PostgreSQL product records for missing or stale OpenSearch documents. It repairs only those indexed documents, refreshes OpenSearch, and reissues the real OpenSearch search. SQL results are **never** served to customers as search results. The normal Kafka event consumer continues updating changes asynchronously.
+
+Use these commands without destroying local data:
+
+```bash
+git pull --ff-only origin feat/nothing
+docker compose up -d --build
+docker compose exec -T api python -m scripts.search_doctor
+# If it reports missing/stale data:
+docker compose exec -T api python -m scripts.search_doctor --repair
+# If the whole catalog is stale:
+docker compose exec -T api python -m scripts.search_doctor --rebuild-all
+curl -fsSG http://localhost:8080/api/search --data-urlencode q=free --data-urlencode city=Bengaluru | python3 -m json.tool
+```
+
+If the doctor reports that Sugar Free is **absent in PostgreSQL**, use `docker compose exec -T api python -m scripts.seed` once to add missing *demo* SKUs. The seed does not overwrite an existing product's stock or reactivate products deactivated by an admin. If stock is zero, the city filter correctly excludes the product. If even a non-city query is zero and the product is indexed, inspect `docker compose logs --tail=150 api opensearch consumer` and the mapping.
+
+**Automated regression:** the Docker integration workflow deliberately deletes just Sugar Free from a nonempty index and then corrupts its `cities` field. It verifies both repair through the public API and a legitimate zero-result search. This test changes only disposable CI search documents, not PostgreSQL stock or orders. Running `python -m scripts.test_search_repair` manually intentionally modifies the search index; reserve it for testing, not a live shop.
+
+For a large production catalog, a background index reconciliation process, schema-versioned aliases and scheduled repair are preferable to request-time repair. The bounded repair here is designed for this hackathon store; it does not imply global exactly-once Kafka/OpenSearch consistency.

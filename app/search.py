@@ -1,6 +1,6 @@
 """OpenSearch is the search engine. PostgreSQL only bootstraps/rebuilds its index."""
 from urllib.parse import urlparse
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from opensearchpy import OpenSearch
 from app.config import get_settings
 from app.models import Product, Inventory
@@ -79,3 +79,71 @@ def search_products(c,q,category,city,min_price,max_price,page,size):
       body={'query':query,'from':(page-1)*size,'size':size,'track_total_hits':True})
     return {'total':response['hits']['total']['value'],'page':page,
             'items':[{'id':h['_id'],**h['_source']} for h in response['hits']['hits']]}
+
+
+def reconcile_missing_search_results(c, db, query, category=None, city=None, min_price=None, max_price=None):
+    """Repair *partial* search-index drift on a zero-hit query.
+
+    PostgreSQL identifies only possible stale documents; search results still come
+    exclusively from a second OpenSearch query. Never return SQL matches as search
+    results. Bounded to 20 candidates and terms >= 3 characters.
+    """
+    term=query.strip()
+    if len(term) < 3:
+        return 0
+
+    # Escape SQL LIKE wildcards so arbitrary user text cannot trigger an all-catalog scan.
+    escaped=(term.replace(chr(92), chr(92)*2).replace('%', chr(92)+'%').replace('_', chr(92)+'_'))
+    pattern='%' + escaped + '%'
+    stmt=select(Product).where(
+        Product.active.is_(True),
+        or_(
+            Product.name.ilike(pattern, escape=chr(92)),
+            Product.description.ilike(pattern, escape=chr(92)),
+            Product.sku.ilike(pattern, escape=chr(92)),
+        ),
+    )
+    if category:
+        stmt=stmt.where(Product.category == category)
+    if min_price is not None:
+        stmt=stmt.where(Product.price >= min_price)
+    if max_price is not None:
+        stmt=stmt.where(Product.price <= max_price)
+    if city:
+        stmt=stmt.join(Inventory, Inventory.product_id == Product.id).where(
+            Inventory.city == city, Inventory.quantity > 0
+        )
+    candidates=db.scalars(stmt.order_by(Product.id).limit(20)).all()
+    if not candidates:
+        return 0
+
+    product_ids=[p.id for p in candidates]
+    rows=db.scalars(select(Inventory).where(Inventory.product_id.in_(product_ids))).all()
+    by_product={}
+    for row in rows:
+        by_product.setdefault(row.product_id, []).append(row)
+
+    index=get_settings().opensearch_index
+    repaired=0
+    for product in candidates:
+        inv=by_product.get(product.id, [])
+        expected_cities={r.city for r in inv if r.quantity > 0}
+        expected_stock={r.city: r.quantity for r in inv}
+        existing=c.get(index=index, id=product.id, ignore=[404])
+        source=existing.get('_source', {}) if existing.get('found',False) else {}
+        if (
+            not source or
+            source.get('name') != product.name or
+            source.get('sku') != product.sku or
+            source.get('description') != product.description or
+            source.get('category') != product.category or
+            source.get('active') != product.active or
+            float(source.get('price', -1)) != float(product.price) or
+            set(source.get('cities') or []) != expected_cities or
+            source.get('stock_by_city') != expected_stock
+        ):
+            index_product(c, product, inv)
+            repaired+=1
+    if repaired:
+        c.indices.refresh(index=index)
+    return repaired

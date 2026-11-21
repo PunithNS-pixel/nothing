@@ -17,7 +17,7 @@ from app.db import get_db, engine
 from app.models import User, Product, Inventory, CartItem, Order, OrderItem, Outbox, AuditLog, RefreshToken, NewsletterSubscriber, RetailerProfile, uid
 from app.schemas import Register, Login, Refresh, ProductIn, StockIn, CartIn, CheckoutIn, ProductOut, ProductPatch, FulfillmentStatus, NewsletterIn, RetailerApply, RetailerReview
 from app.security import hash_password, verify_password, new_refresh, access_token, token_digest, current_user, admin_user
-from app.search import client as search_client, search_products, ensure_search_ready
+from app.search import client as search_client, search_products, ensure_search_ready, reconcile_missing_search_results
 from app.retailers import validate_gstin, retailer_for, retailer_approved, price_for
 
 settings = get_settings()
@@ -230,7 +230,17 @@ def search(q:str=Query('',max_length=100),category:str|None=None,city:str|None=N
     c=search_client()
     try:
         ensure_search_ready(c,db)
-        return search_products(c,q.strip(),category,city,min_price,max_price,page,size)
+        phrase=q.strip()
+        result=search_products(c,phrase,category,city,min_price,max_price,page,size)
+        # A nonempty OpenSearch index can still be missing a specific product.
+        # On an exact-substring miss, repair bounded stale documents and ask
+        # OpenSearch again; never return results directly from SQL.
+        if phrase and result['total'] == 0:
+            repaired=reconcile_missing_search_results(c,db,phrase,category,city,min_price,max_price)
+            if repaired:
+                logger.warning('Repaired %s missing/stale OpenSearch docs for search miss %r',repaired,phrase)
+                result=search_products(c,phrase,category,city,min_price,max_price,page,size)
+        return result
     except Exception:
         logger.exception('OpenSearch search failed (index=%s, query=%r)',settings.opensearch_index,q)
         raise HTTPException(503,'OpenSearch index is not ready. Run: docker compose exec -T api python -m scripts.reindex; check docker compose logs opensearch consumer')
