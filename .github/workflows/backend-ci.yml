@@ -86,7 +86,7 @@ jobs:
           PY
       - name: Validate benchmark and Aiven scripts
         run: |
-          python3 -m py_compile scripts/load-marketplace.py backend/scripts/verify-aiven.py
+          python3 -m py_compile scripts/load-marketplace.py scripts/setup-gmail-oauth.py backend/scripts/verify-aiven.py
           bash -n scripts/chaos-marketplace.sh
           python3 backend/scripts/verify-aiven.py --help >/dev/null
           python3 scripts/load-marketplace.py --help >/dev/null

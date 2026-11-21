@@ -277,3 +277,7 @@ The Aiven live connectivity verifier, bounded concurrent HTTP benchmark, and dis
 ## Order-confirmation emails (COD and verified Stripe)
 
 The server now writes a **durable order email job** with each successful checkout and sends a customer-facing HTML + plaintext receipt via SMTP after commit, with RabbitMQ notifications, multi-replica-safe claims and persistent retries. Actual mail is disabled until real SMTP credentials are set privately. See [Order confirmation emails: configuration, testing and operations](docs/ORDER_CONFIRMATION_EMAIL.md).
+
+## Google Cloud Gmail API for confirmation and OTP emails
+
+You can choose the Google Cloud OAuth-powered Gmail API sender instead of SMTP. The existing transactional email queue, database retry state and HTML receipt still apply. Follow the [Google Cloud setup and macOS OAuth script](docs/GOOGLE_CLOUD_GMAIL_API.md). Real sending requires your own Gmail/Workspace account and OAuth consent; source code contains no credentials.
