@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(n)||0);
 // All authenticated API traffic goes through this storefront's Nginx /api proxy.
 const API='';
-let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0,searchRequestSeq=0,searchDebounce;
+let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0,searchRequestSeq=0,searchDebounce,promoQuote=null,offerList=[],promoRequestSeq=0;
 const productById=id=>catalog.find(p=>String(p.productId)===String(id));
 const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -58,7 +58,9 @@ function updateCart(){
  const items=Object.entries(cart).filter(([id,q])=>Number(q)>0&&productById(id));
  const count=items.reduce((n,[id,q])=>n+Number(q),0);
  $('cartCount').textContent=count;
- $('cartTotal').textContent=money(items.reduce((n,[id,q])=>n+itemPrice(productById(id))*q,0));
+ const rawSubtotal=items.reduce((n,[id,q])=>n+itemPrice(productById(id))*q,0);
+ $('cartTotal').textContent=money(rawSubtotal);
+ renderPromoQuote(rawSubtotal);
  $('cartItems').innerHTML=items.length?items.map(([id,q])=>{
    const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+escape(id)+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.variantLabel?('SIZE '+p.variantLabel+' · '):'')+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
  }).join(''):'<div class="empty-state"><strong>YOUR BAG IS EMPTY.</strong><p>Some good stuff is waiting for you.</p></div>';
@@ -73,6 +75,7 @@ async function persistCart(){
  try{
   const items=Object.entries(cart).filter(([id,q])=>Number(q)>0).map(([id,quantity])=>({productId:Number(id),quantity:Number(quantity)}));
   await request('/api/cart/create',{method:'POST',body:JSON.stringify(items)});
+  await syncPromoQuote();
  }catch(e){notify('Cart could not sync: '+e.message,true);throw e}
  finally{cartBusy=false;updateCart()}
 }
@@ -81,6 +84,7 @@ async function changeQty(id,delta){
  const next=Math.max(0,Math.min(99,Number(cart[id]||0)+delta));
  if(next>p.stock){notify('Only '+p.stock+' available right now',true);return}
  const before={...cart};
+ promoQuote=null;promoRequestSeq++;
  if(next)cart[id]=next;else delete cart[id];
  updateCart();
  try{
@@ -302,8 +306,8 @@ async function loadServerCart(){
     for(const [id,q] of Object.entries(guest))cart[id]=Math.min(99,Number(cart[id]||0)+Number(q||0));
     await persistCart();localStorage.removeItem('nothing-guest-cart');
   }
-  updateCart();
- }catch(e){cart={};updateCart();notify('Could not restore your saved cart: '+e.message,true)}
+  updateCart();await syncPromoQuote();
+ }catch(e){cart={};promoQuote=null;updateCart();notify('Could not restore your saved cart: '+e.message,true)}
 }
 async function loadRetailerStatus(){
  retailerStatus='NOT_APPLIED';retailerDiscount=0;
@@ -333,6 +337,7 @@ async function loadSession(){
  $('adminOrdersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  $('adminRequestsBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  $('adminInventoryBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
+ $('adminOffersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  $('sellerInventoryBtn').hidden=!(session?.roles||[]).includes('ROLE_SELLER');
  await loadRetailerStatus();await applyFilters();await loadServerCart();
 }
@@ -416,6 +421,7 @@ async function login(mode=null){
   $('adminOrdersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   $('adminRequestsBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   $('adminInventoryBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
+  $('adminOffersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   $('sellerInventoryBtn').hidden=!(session.roles||[]).includes('ROLE_SELLER');
   await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
@@ -435,6 +441,8 @@ async function logout(){
  $('adminOrdersBtn').hidden=true;
  $('adminRequestsBtn').hidden=true;
  $('adminInventoryBtn').hidden=true;
+ $('adminOffersBtn').hidden=true;
+ promoQuote=null;promoRequestSeq++;
  $('sellerInventoryBtn').hidden=true;
  // Do not transfer one customer's bag to the next shopper on the same device.
  localStorage.removeItem('nothing-guest-cart');
@@ -635,6 +643,11 @@ async function showOrders(){
    const h=document.createElement('strong');h.textContent='ORDER #'+o.orderId+' · '+money(o.totalAmount);
    const p=document.createElement('p');p.textContent=(o.orderDate||'')+' · '+(o.orderStatus||'Placed');
    row.append(h,p);
+   if(Number(o.discountAmount)>0){
+    const saving=document.createElement('p');saving.className='order-offer-saved';
+    saving.textContent='OFFER '+(o.offerCode||'')+' · YOU SAVED '+money(o.discountAmount);
+    row.append(saving);
+   }
    for(const item of (Array.isArray(o.orderItems)?o.orderItems:[])){
     const line=document.createElement('div');line.className='order-detail-line';
     const product=item.product||{};
@@ -712,7 +725,10 @@ async function confirmCheckoutDetails(address){
     }
     detail.append(name,desc,price,controls);article.append(artwork,detail);items.append(article);
    }
-   totalRow.innerHTML='<span>Order subtotal</span><strong>'+money(checkoutTotal())+'</strong>';
+   const display=promoQuote&&promoQuote.applied
+     ? '<span>After '+escape(promoQuote.code)+' offer (saved '+money(promoQuote.discount)+')</span><strong>'+money(promoQuote.total)+'</strong>'
+     : '<span>Order subtotal</span><strong>'+money(checkoutTotal())+'</strong>';
+   totalRow.innerHTML=display;
    continueBtn.disabled=!entries.length||cartBusy;
   };
   render();
@@ -742,7 +758,7 @@ async function choosePaymentMethod(total){
    const sub=document.createElement('small');sub.textContent=radio.disabled?'Online payment is unavailable until Stripe is configured.':description;
    content.append(strong,sub);label.append(radio,content);options.append(label);
   }
-  const summary=document.createElement('div');summary.className='checkout-total-row';summary.innerHTML='<span>Subtotal (verified at order placement)</span><strong>'+money(total)+'</strong>';root.append(summary);
+  const summary=document.createElement('div');summary.className='checkout-total-row';summary.innerHTML='<span>'+(promoQuote?.applied?'Total after '+escape(promoQuote.code)+' (save '+money(promoQuote.discount)+')':'Total (verified at order placement)')+'</span><strong>'+money(total)+'</strong>';root.append(summary);
   const notice=document.createElement('p');notice.className='checkout-delivery-note';notice.textContent='No payment is collected for Cash on Delivery. Online payments use Stripe hosted checkout; never enter card details in this page.';root.append(notice);
   const footer=document.createElement('div');footer.className='checkout-footer';
   const back=document.createElement('button');back.type='button';back.className='checkout-secondary';back.textContent='← Review order';
@@ -769,7 +785,7 @@ async function resumeStripeCheckout(){
   try{
    const data=await request('/api/checkout/stripe/status?sessionId='+encodeURIComponent(sessionId));
    if(data.status==='COMPLETED'){
-    cart={};saveGuest();updateCart();
+    cart={};promoQuote=null;promoRequestSeq++;saveGuest();updateCart();
     notify('Stripe payment verified and order #'+data.orderId+' placed.');
     await loadCatalog();return;
    }
@@ -842,7 +858,10 @@ async function checkout(){
     if(review===null||review==='empty')return;
     if(review==='address'){backToAddress=true;break}
     checkoutStage='selecting payment method';
-    const method=await choosePaymentMethod(checkoutTotal());
+    checkoutStage='checking offers and final totals';
+    await syncPromoQuote();
+    if(promoQuote?.code&&!promoQuote.applied)throw new Error(promoQuote.message||'Selected coupon no longer qualifies');
+    const method=await choosePaymentMethod(promoQuote?.total??checkoutTotal());
     if(method===null)return;
     if(method==='BACK')continue;
     // The backend remains authoritative for address ownership, pricing, stock, and payment status.
@@ -858,7 +877,8 @@ async function checkout(){
     const order=await request('/api/order/users/payments/COD',{method:'POST',body:JSON.stringify({
      addressId:address.addressId,pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Cash on delivery'
     })});
-    cart={};saveGuest();updateCart();closeCart();
+    cart={};promoQuote=null;promoRequestSeq++;saveGuest();updateCart();closeCart();
+    loadOffers().catch(console.warn);
     notify('Order #'+order.orderId+' placed! Payment due on delivery.');
     try{await loadCatalog()}catch(e){console.warn('Catalog refresh after order:',e)}
     await showOrders();return;
@@ -1113,6 +1133,124 @@ async function showInventoryPanel(seller){
  }catch(e){notify('Inventory unavailable: '+e.message,true)}
 }
 
+// Authenticated checkout totals always come from PostgreSQL, not browser arithmetic.
+function renderPromoQuote(estimated){
+ const q=promoQuote;
+ const hasDiscount=!!(user&&q?.applied&&Number(q.discount)>0);
+ $('couponSavingsLine').hidden=!hasDiscount;
+ $('couponSavings').textContent=money(q?.discount||0);
+ $('cartPayable').textContent=money(user&&q?.subtotal>=0?q.total:estimated);
+ $('couponStatus').textContent=!user?'Sign in to apply coupons and see eligible offers.':
+   q?.code?(q.applied?(q.automatic?'AUTOMATIC OFFER: ':'COUPON APPLIED: ')+q.code+' · '+q.message:(q.message||'This code cannot be used')):
+   (q?.message||'Add a coupon or reach a spend threshold to save.');
+ $('removeCouponBtn').hidden=!(user&&q?.code&&!q.automatic);
+ $('couponInput').disabled=!user;
+ $('applyCouponBtn').disabled=!user;
+}
+async function syncPromoQuote(){
+ if(!user){promoQuote=null;updateCart();return null}
+ const requestId=++promoRequestSeq;
+ const next=await request('/api/customer/cart/quote');
+ if(requestId!==promoRequestSeq)return promoQuote;
+ promoQuote=next;updateCart();return next;
+}
+async function applyCouponCode(code){
+ const normalized=String(code||'').trim().toUpperCase();
+ if(!normalized){notify('Enter your coupon code.',true);return}
+ if(!user){notify('Please sign in before using a coupon.',true);return}
+ try{
+  await persistCart();
+  const q=await request('/api/customer/cart/coupon',{method:'PUT',body:JSON.stringify({code:normalized})});
+  promoQuote=q;updateCart();$('couponInput').value=normalized;
+  notify('Coupon '+normalized+' applied. You saved '+money(q.discount)+'.');
+ }catch(e){notify('Coupon unavailable: '+e.message,true);await syncPromoQuote().catch(console.warn)}
+}
+async function removeCouponCode(){
+ if(!user)return;
+ try{
+  promoQuote=await request('/api/customer/cart/coupon',{method:'DELETE'});
+  $('couponInput').value='';updateCart();notify('Coupon removed. Eligible automatic offers may still apply.');
+ }catch(e){notify('Could not remove coupon: '+e.message,true)}
+}
+function offerText(o){
+ const range='ON CARTS FROM '+money(o.minSubtotal)+(o.maxSubtotal?' TO '+money(o.maxSubtotal):'');
+ return o.kind==='PERCENT'?Number(o.value)+'% OFF'+(o.maxDiscount?' · UP TO '+money(o.maxDiscount):'')+' · '+range:
+   money(o.value)+' OFF · '+range;
+}
+async function loadOffers(){
+ const response=await request('/api/store/offers');
+ offerList=Array.isArray(response)?response:[];
+ const root=$('offersGrid');root.replaceChildren();
+ if(!offerList.length){root.textContent='More offers are coming soon. Check back for limited-time promotions.';return}
+ for(const offer of offerList){
+  const item=document.createElement('article');item.className='offer-card';
+  const tag=document.createElement('small');tag.textContent=offer.autoApply?'AUTO-APPLIED DEAL':'COUPON CODE';
+  const title=document.createElement('h3');title.textContent=offer.title;
+  const desc=document.createElement('p');desc.textContent=offerText(offer);
+  const button=document.createElement('button');button.type='button';
+  button.textContent=offer.autoApply?'SHOP TO UNLOCK ↗':'USE '+offer.code+' ↗';
+  button.onclick=()=>{if(offer.autoApply){document.querySelector('#catalog').scrollIntoView({behavior:'smooth'});return}
+   $('couponInput').value=offer.code;openCart();notify('Code '+offer.code+' is ready. Apply it after signing in.')};
+  item.append(tag,title,desc,button);root.append(item);
+ }
+}
+async function showOfferAdmin(){
+ try{
+  const offers=await request('/api/admin/offers');
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const h=document.createElement('h2');h.textContent='CAMPAIGNS & COUPONS';root.append(h);
+  const intro=document.createElement('p');intro.textContent='Create real PostgreSQL-backed offers with a cart spend range, validity and redemption limits. Discounts are rechecked at checkout.';root.append(intro);
+  const create=document.createElement('button');create.className='primary-choice';create.textContent='+ CREATE OFFER';
+  create.onclick=async()=>{
+   d.close();
+   const data=await showDialog('NEW PROMOTION',[
+    {name:'code',label:'PROMO CODE (3–32 LETTERS/NUMBERS)',placeholder:'FESTIVE250'},
+    {name:'title',label:'CAMPAIGN TITLE',placeholder:'Festival shopping bonus'},
+    {name:'kind',label:'TYPE: FLAT OR PERCENT',placeholder:'FLAT'},
+    {name:'value',label:'DISCOUNT ₹ OR PERCENT',type:'number',placeholder:'250'},
+    {name:'minSubtotal',label:'MINIMUM CART ₹',type:'number',placeholder:'1999'},
+    {name:'maxSubtotal',label:'MAXIMUM CART ₹ (OPTIONAL)',type:'number',required:false},
+    {name:'maxDiscount',label:'MAXIMUM SAVING ₹ (OPTIONAL)',type:'number',required:false},
+    {name:'days',label:'VALID FOR HOW MANY DAYS',type:'number',placeholder:'30'},
+    {name:'globalLimit',label:'TOTAL REDEMPTION LIMIT',type:'number',placeholder:'100'},
+    {name:'perCustomerLimit',label:'REDEMPTIONS PER CUSTOMER',type:'number',placeholder:'1'},
+    {name:'autoApply',label:'AUTO APPLY? YES / NO',placeholder:'NO'}
+   ],'CREATE COUPON');
+   if(!data){showOfferAdmin();return}
+   try{
+    const payload={
+     code:data.code,title:data.title,kind:String(data.kind).toUpperCase(),
+     value:Number(data.value),minSubtotal:Number(data.minSubtotal),
+     maxSubtotal:data.maxSubtotal?Number(data.maxSubtotal):null,
+     maxDiscount:data.maxDiscount?Number(data.maxDiscount):null,
+     startsAt:new Date(Date.now()-60000).toISOString(),
+     endsAt:new Date(Date.now()+Number(data.days)*86400000).toISOString(),
+     globalLimit:Number(data.globalLimit),perCustomerLimit:Number(data.perCustomerLimit),
+     autoApply:String(data.autoApply).toLowerCase()==='yes'
+    };
+    if(!Number.isFinite(payload.value)||!Number.isFinite(payload.minSubtotal)||!Number.isFinite(Number(data.days))||Number(data.days)<1)throw Error('Please enter valid offer amounts and dates');
+    await request('/api/admin/offers',{method:'POST',body:JSON.stringify(payload)});
+    notify('Offer '+payload.code+' published.');await loadOffers();showOfferAdmin();
+   }catch(e){notify('Could not create offer: '+e.message,true);showOfferAdmin()}
+  };
+  root.append(create);
+  for(const o of offers){
+   const row=document.createElement('article');row.className='review-card';
+   const name=document.createElement('strong');name.textContent=o.code+' · '+o.title;
+   const details=document.createElement('p');details.textContent=offerText(o)+' · Redeemed '+o.usedCount+'/'+o.globalLimit+' · '+(o.active?'ACTIVE':'PAUSED');
+   const toggle=document.createElement('button');toggle.type='button';toggle.className='outline-button';
+   toggle.textContent=o.active?'PAUSE OFFER':'ACTIVATE OFFER';
+   toggle.onclick=async()=>{try{
+    await request('/api/admin/offers/'+o.id+'/active',{method:'PUT',body:JSON.stringify({active:!o.active})});
+    await loadOffers();d.close();showOfferAdmin();
+   }catch(e){notify(e.message,true)}};
+   row.append(name,details,toggle);root.append(row);
+  }
+  const close=document.createElement('button');close.type='button';close.className='outline-button';close.textContent='CLOSE';
+  close.onclick=()=>d.close();root.append(close);d.showModal();
+ }catch(e){notify('Admin offers unavailable: '+e.message,true)}
+}
+
 function bind(){
  $('year').textContent=new Date().getFullYear();
  $('cartBtn').onclick=openCart;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
@@ -1125,6 +1263,10 @@ function bind(){
  $('adminOrdersBtn').onclick=showFulfillmentPanel;
  $('adminRequestsBtn').onclick=reviewAfterSaleRequests;
  $('adminInventoryBtn').onclick=()=>showInventoryPanel(false);
+ $('adminOffersBtn').onclick=showOfferAdmin;
+ $('applyCouponBtn').onclick=()=>applyCouponCode($('couponInput').value);
+ $('removeCouponBtn').onclick=removeCouponCode;
+ $('couponInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();applyCouponCode($('couponInput').value)}};
  $('sellerInventoryBtn').onclick=()=>showInventoryPanel(true);
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
  $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchDebounce);$('searchGo').click()}});
@@ -1135,5 +1277,5 @@ function bind(){
  $('clearFilters').onclick=()=>{searchText='';$('search').value='';$('cityFilter').value='';$('priceFilter').value='';$('brandFilter').value='';setCategory('All')};
  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCart()});
 }
-bind();syncAccountButtons();loadCatalog().then(loadSession).then(resumeStripeCheckout);
+bind();syncAccountButtons();loadOffers().catch(console.warn);loadCatalog().then(loadSession).then(resumeStripeCheckout);
 })();
