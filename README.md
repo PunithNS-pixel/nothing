@@ -269,3 +269,7 @@ Endpoints:
 ## Cloud reliability and load testing
 
 The Aiven live connectivity verifier, bounded concurrent HTTP benchmark, and disposable Kafka/OpenSearch/RabbitMQ recovery tests are documented in [Reliability, load and Aiven](docs/RELIABILITY_LOAD_AIVEN.md). Live provider credentials and production-scale capacity are not implied by local CI results.
+
+## Three Spring Boot replicas and Nginx round robin
+
+[See the new HA deployment and live failover guide](docs/ROUND_ROBIN_DEPLOYMENT.md) for round robin routing, HTTPS, cloud prerequisites and limitations. The original single-instance Docker profiles remain available.
