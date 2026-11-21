@@ -31,4 +31,8 @@ public class AddressDTO {
     public AddressDTO(Long addressId,String street,String buildingName,String city,String state,String country,String pincode){
         this(addressId,street,buildingName,city,state,country,pincode,null,null,null);
     }
+    // Preserve the existing eight-argument API for address callers.
+    public AddressDTO(Long addressId,String street,String buildingName,String city,String state,String country,String pincode,String phoneNumber){
+        this(addressId,street,buildingName,city,state,country,pincode,phoneNumber,null,null);
+    }
 }
