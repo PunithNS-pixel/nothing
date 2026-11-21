@@ -47,6 +47,10 @@ public class Address {
     @Column(length=15)
     private String phoneNumber;
 
+    // Saved coordinates are optional and user-consented; never used as a courier's live GPS.
+    private Double latitude;
+    private Double longitude;
+
 
     @ManyToOne
     @JoinColumn(name = "user_id")
