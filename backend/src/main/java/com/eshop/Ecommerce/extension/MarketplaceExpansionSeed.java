@@ -139,11 +139,19 @@ public class MarketplaceExpansionSeed {
     }
 
     private void seedFashionSizes() {
+        // Never modify seller-managed fashion products. Only demo names are eligible.
+        Set<String> demoNames=new HashSet<>();
+        for(Entry entry:readEntries()) if("Fashion".equals(entry.category())) demoNames.add(entry.name());
+        demoNames.addAll(Set.of(
+            "Classic Cotton T-Shirt","Urban Running Shoes","Unisex Hoodie",
+            "Cotton Crew Socks 5 Pack","Classic Denim Jacket"
+        ));
         List<Product> all = products.findAll();
         Map<String,Product> byName = new HashMap<>();
         for(Product p:all) byName.put(p.getProductName().toLowerCase(Locale.ROOT),p);
         for(Product base:all) {
             if(base.getCategory()==null || !"Fashion".equalsIgnoreCase(base.getCategory().getCategoryName())) continue;
+            if(base.getUser()!=null || !demoNames.contains(base.getProductName()) || base.getQuantity()==null) continue;
             if(base.getVariantGroup()!=null && !base.getVariantGroup().isBlank()) continue;
             String kind=sizeType(base.getProductName());
             if(kind==null) continue; // Bags/wallets/etc remain one-size items.
