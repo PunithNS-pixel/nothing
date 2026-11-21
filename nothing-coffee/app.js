@@ -323,6 +323,7 @@ async function loadSession(){
  const session=await verifySession();
  syncAccountButtons();
  $('adminRetailersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
+ $('adminOrdersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  await loadRetailerStatus();await applyFilters();await loadServerCart();
 }
 function showDialog(title,fields,button='CONTINUE'){
@@ -332,7 +333,7 @@ function showDialog(title,fields,button='CONTINUE'){
   const form=document.createElement('form'),inputs={};
   for(const f of fields){
    const label=document.createElement('label');label.textContent=f.label;const input=document.createElement('input');
-   input.name=f.name;input.required=true;input.type=f.type||'text';input.placeholder=f.placeholder||'';input.autocomplete=f.autocomplete||'off';
+   input.name=f.name;input.required=f.required!==false;input.type=f.type||'text';input.placeholder=f.placeholder||'';input.autocomplete=f.autocomplete||'off';
    if(f.minLength)input.minLength=f.minLength;
    label.append(input);form.append(label);inputs[f.name]=input;
   }
@@ -376,6 +377,7 @@ async function login(mode=null){
   if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
   syncAccountButtons();
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
+  $('adminOrdersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
@@ -391,6 +393,7 @@ async function logout(){
  try{await request('/api/auth/signout',{method:'POST'})}catch(e){console.warn('Sign-out request:',e)}
  user=null;cart={};retailerStatus='NOT_APPLIED';retailerDiscount=0;
  $('adminRetailersBtn').hidden=true;
+ $('adminOrdersBtn').hidden=true;
  // Do not transfer one customer's bag to the next shopper on the same device.
  localStorage.removeItem('nothing-guest-cart');
  syncAccountButtons();await applyFilters();updateCart();
@@ -457,29 +460,149 @@ async function reviewRetailers(){
   const exit=document.createElement('button');exit.className='outline-button';exit.textContent='CLOSE';exit.onclick=()=>d.close();root.append(exit);d.showModal();
  }catch(e){notify('Approval queue unavailable: '+e.message,true)}
 }
+
+function trackingLabel(stage){return String(stage||'').replaceAll('_',' ')}
+function formatEventTime(value){
+ if(!value)return 'Time not recorded';
+ const date=new Date(value);return Number.isNaN(date.getTime())?'Time not recorded':
+  new Intl.DateTimeFormat('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}).format(date);
+}
+const stageOptions={
+ PLACED:['CONFIRMED','CANCELLED'],
+ CONFIRMED:['PACKED','CANCELLED'],
+ PACKED:['SHIPPED','CANCELLED'],
+ SHIPPED:['OUT_FOR_DELIVERY'],
+ OUT_FOR_DELIVERY:['DELIVERED']
+};
+async function showTracking(orderId,admin=false){
+ try{
+  const data=await request((admin?'/api/admin/orders/':'/api/customer/orders/')+encodeURIComponent(orderId)+'/tracking');
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const title=document.createElement('h2');title.textContent='TRACK ORDER #'+data.orderId;
+  const intro=document.createElement('p');intro.className='tracking-disclaimer';
+  intro.textContent='These are store-confirmed fulfillment updates. Live courier GPS/scans are not connected.';
+  const status=document.createElement('div');status.className='tracking-status';
+  const label=document.createElement('span');label.className='eyebrow';label.textContent='CURRENT STAGE';
+  const statusText=document.createElement('strong');statusText.textContent=trackingLabel(data.currentStage);
+  status.append(label,statusText);
+  root.append(title,intro,status);
+  if(data.carrier && data.trackingNumber){
+    const courier=document.createElement('p');courier.className='tracking-courier';
+    courier.textContent='CARRIER: '+data.carrier+' · REFERENCE: '+data.trackingNumber+
+      (data.estimatedDeliveryDate?' · MANUAL ESTIMATE: '+data.estimatedDeliveryDate:'');
+    root.append(courier);
+  }else if(data.estimatedDeliveryDate){
+    const estimate=document.createElement('p');estimate.textContent='Staff-estimated delivery: '+data.estimatedDeliveryDate;root.append(estimate);
+  }
+  const steps=document.createElement('ol');steps.className='tracking-timeline';
+  for(const milestone of (data.milestones||[])){
+    const li=document.createElement('li');li.className='tracking-milestone'+(milestone.completed?' completed':'');
+    if(milestone.stage===data.currentStage)li.classList.add('current');
+    const dot=document.createElement('span');dot.className='tracking-dot';dot.textContent=milestone.completed?'✓':'';
+    const details=document.createElement('div');const stage=document.createElement('strong');
+    stage.textContent=trackingLabel(milestone.stage);
+    const time=document.createElement('small');
+    time.textContent=milestone.occurredAt?formatEventTime(milestone.occurredAt):
+      (milestone.completed?'Status known · date not recorded':'Not yet recorded');
+    details.append(stage,time);li.append(dot,details);steps.append(li);
+  }
+  root.append(steps);
+  if((data.history||[]).length){
+    const historyTitle=document.createElement('h3');historyTitle.className='tracking-history-heading';
+    historyTitle.textContent='EVENT HISTORY';root.append(historyTitle);
+    for(const event of data.history){
+      const item=document.createElement('p');item.className='tracking-history-item';
+      item.textContent=formatEventTime(event.occurredAt)+' · '+trackingLabel(event.stage)+
+        (event.note?' · '+event.note:'')+' · '+event.updatedBy;
+      root.append(item);
+    }
+  }
+  if(admin){
+    const actions=document.createElement('div');actions.className='tracking-actions';
+    for(const next of (stageOptions[data.currentStage]||[])){
+      const btn=document.createElement('button');btn.className='primary-choice';
+      btn.textContent='MARK '+trackingLabel(next)+' ↗';
+      btn.onclick=async()=>{
+        d.close();
+        const fields=[{name:'note',label:'STAFF NOTE FOR THIS MILESTONE',placeholder:'Order verified and processing',minLength:3}];
+        if(next==='SHIPPED'){
+          fields.push({name:'carrier',label:'COURIER NAME (MANUALLY ENTERED)',placeholder:'Your shipping provider'});
+          fields.push({name:'trackingNumber',label:'WAYBILL / TRACKING NUMBER',placeholder:'SHIP123456',minLength:5});
+          fields.push({name:'estimatedDeliveryDate',label:'EXPECTED DELIVERY DATE (OPTIONAL)',type:'date',required:false});
+        }
+        const input=await showDialog('UPDATE FULFILLMENT · '+trackingLabel(next),fields,'SAVE MILESTONE');
+        if(!input){await showTracking(orderId,true);return}
+        const payload={stage:next,note:input.note};
+        if(next==='SHIPPED'){
+          payload.carrier=input.carrier;payload.trackingNumber=input.trackingNumber;
+          if(input.estimatedDeliveryDate)payload.estimatedDeliveryDate=input.estimatedDeliveryDate;
+        }
+        try{
+          await request('/api/admin/orders/'+orderId+'/tracking',{method:'PUT',body:JSON.stringify(payload)});
+          notify('Order #'+orderId+' updated: '+trackingLabel(next));
+        }catch(e){notify('Tracking update failed: '+e.message,true)}
+        await showTracking(orderId,true);
+      };
+      actions.append(btn);
+    }
+    root.append(actions);
+  }
+  const buttons=document.createElement('div');buttons.className='tracking-actions';
+  const back=document.createElement('button');back.className='outline-button';
+  back.textContent=admin?'BACK TO FULFILLMENT ↗':'BACK TO ORDERS ↗';
+  back.onclick=()=>{d.close();admin?showFulfillmentPanel():showOrders()};
+  const close=document.createElement('button');close.className='outline-button';
+  close.textContent='CLOSE';close.onclick=()=>d.close();
+  buttons.append(back,close);root.append(buttons);
+  d.showModal();
+ }catch(e){notify('Order tracking unavailable: '+e.message,true)}
+}
+async function showFulfillmentPanel(){
+ try{
+  const data=await request('/api/admin/orders?pageNumber=0&pageSize=50&sortBy=orderId&sortOrder=desc');
+  const orders=Array.isArray(data.content)?data.content:[];
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const title=document.createElement('h2');title.textContent='ORDER FULFILLMENT';root.append(title);
+  const caption=document.createElement('p');caption.textContent='Authorized staff only. Select an order to add a verified store milestone. This does not connect to a courier.';root.append(caption);
+  if(!orders.length){const e=document.createElement('p');e.textContent='No customer orders yet.';root.append(e)}
+  for(const o of orders){
+    const b=document.createElement('button');b.type='button';b.className='address-option fulfillment-row';
+    b.textContent='ORDER #'+o.orderId+' · '+(o.orderStatus||'PLACED')+' · '+money(o.totalAmount||0);
+    b.onclick=()=>{d.close();showTracking(o.orderId,true)};root.append(b);
+  }
+  if(data.totalElements>50){
+   const note=document.createElement('p');note.textContent='Showing the latest 50 orders. Use the admin API for older orders.';root.append(note);
+  }
+  const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';
+  close.onclick=()=>d.close();root.append(close);d.showModal();
+ }catch(e){notify('Staff order dashboard unavailable: '+e.message,true)}
+}
 async function showOrders(){
  if(!user){if(!await login())return}
  try{
   const data=await request('/api/customer/orders');
   const orders=Array.isArray(data)?data:[];
-  const root=$('modalContent');root.replaceChildren();
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
   const title=document.createElement('h2');title.textContent='YOUR ORDERS';root.append(title);
   if(!orders.length){const p=document.createElement('p');p.textContent='No orders yet. Your next favorite find awaits!';root.append(p)}
   for(const o of orders){
-   const row=document.createElement('div');row.style.cssText='padding:16px 0;border-bottom:1px solid #ddd';
-   const h=document.createElement('strong');h.textContent='Order #'+o.orderId+' · '+money(o.totalAmount);
+   const row=document.createElement('div');row.className='tracking-order-card';
+   const h=document.createElement('strong');h.textContent='ORDER #'+o.orderId+' · '+money(o.totalAmount);
    const p=document.createElement('p');p.textContent=(o.orderDate||'')+' · '+(o.orderStatus||'Placed');
    row.append(h,p);
    for(const item of (Array.isArray(o.orderItems)?o.orderItems:[])){
     const line=document.createElement('div');line.className='order-detail-line';
     const product=item.product||{};
-    const quantity=Number(item.quantity)||0;
-    line.textContent=quantity+' × '+(product.productName||'Product')+(product.variantLabel?' · size '+product.variantLabel:'')+' · '+money(item.orderedProductPrice);
+    line.textContent=(Number(item.quantity)||0)+' × '+(product.productName||'Product')+
+      (product.variantLabel?' · size '+product.variantLabel:'')+' · '+money(item.orderedProductPrice);
     row.append(line);
    }
-   root.append(row);
+   const track=document.createElement('button');track.type='button';track.className='track-order-button';
+   track.textContent='TRACK YOUR ORDER ↗';track.onclick=()=>{d.close();showTracking(o.orderId)};
+   row.append(track);root.append(row);
   }
-  const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>$('modal').close();root.append(close);$('modal').showModal();
+  const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>d.close();
+  root.append(close);d.showModal();
  }catch(e){notify('Order history is temporarily unavailable: '+e.message,true)}
 }
 async function choosePaymentMethod(total){
@@ -618,6 +741,7 @@ function bind(){
  $('logoutBtn').onclick=logout;
  $('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
  $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
+ $('adminOrdersBtn').onclick=showFulfillmentPanel;
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
  $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchDebounce);$('searchGo').click()}});
  $('search').addEventListener('input',()=>{clearTimeout(searchDebounce);searchDebounce=setTimeout(()=>{searchText=$('search').value.trim();applyFilters()},350)});
