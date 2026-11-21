@@ -5,7 +5,13 @@ import stat
 import tempfile
 import unittest
 
-from prepare_gce_env import prepare, parse_env
+import importlib.util
+
+script = Path(__file__).with_name("prepare-gce-env.py")
+spec = importlib.util.spec_from_file_location("prepare_gce_env", script)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+prepare, parse_env = module.prepare, module.parse_env
 
 
 class GcePrivateEnvironmentTests(unittest.TestCase):
