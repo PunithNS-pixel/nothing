@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** Simulate an email provider; never use a real mailbox or live SMTP server in CI. */
-@SpringBootTest(properties={"nothing.email.verification.required=true","nothing.email.from=noreply@demo.example"})
+@SpringBootTest(properties={"nothing.email.verification.required=true","nothing.email.from=noreply@demo.example","management.health.mail.enabled=false"})
 @AutoConfigureMockMvc
 class EmailVerificationRegistrationTest {
  @Autowired MockMvc mvc;
@@ -52,7 +52,7 @@ class EmailVerificationRegistrationTest {
   String code=match.group(1);
 
   mvc.perform(post("/api/auth/email/confirm").contentType(MediaType.APPLICATION_JSON)
-    .content(mapper.writeValueAsString(Map.of("email",email,"code","999999"))))
+    .content(mapper.writeValueAsString(Map.of("email",email,"code","invalid"))))
     .andExpect(status().isBadRequest());
 
   var confirmed=mvc.perform(post("/api/auth/email/confirm")
