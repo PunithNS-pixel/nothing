@@ -18,7 +18,19 @@ function Field($obj, [string[]]$names) {
 if (-not (Test-Path "backend/.env")) { throw "backend/.env missing. Configure the local stack first." }
 
 Write-Host "Checking catalog API: $BaseUrl/api/store/catalog"
-$api = @(Invoke-RestMethod -Uri "$($BaseUrl.TrimEnd('/'))/api/store/catalog" -TimeoutSec 30)
+# Parse JSON explicitly: Windows PowerShell can wrap an Invoke-RestMethod JSON array
+# as one pipeline item, causing a false "missing productId" error.
+$endpoint = "$($BaseUrl.TrimEnd('/'))/api/store/catalog"
+$response = Invoke-WebRequest -UseBasicParsing -Uri $endpoint -TimeoutSec 30
+$parsed = ConvertFrom-Json -InputObject $response.Content
+if ($parsed -isnot [array]) {
+    $shape = if ($null -eq $parsed) { "null" } else { $parsed.GetType().FullName }
+    $keys = if ($null -ne $parsed) { $parsed.PSObject.Properties.Name -join ', ' } else { "" }
+    throw "Expected an array from catalog API. Got $shape (fields: $keys)."
+}
+$api = $parsed
+if ($api.Count -eq 0) { throw "Catalog API returned an empty list." }
+Write-Host "Parsed $($api.Count) API products."
 Write-Host "Reading PostgreSQL public.products without modifying records..."
 $sql = "SELECT row_to_json(p)::text FROM public.products p;"
 $rows = @(& docker compose @compose exec -T postgres psql -X -A -t -P pager=off -U nothing -d nothing -c $sql)
@@ -37,18 +49,25 @@ foreach ($p in $db) {
 $apiIds = @{}
 foreach ($p in $api) {
     $id = Field $p $apiIdNames
-    if ($null -eq $id) { throw "Catalog item missing productId." }
+    if ($null -eq $id) {
+        $fields = if ($null -eq $p) { "null" } else { $p.PSObject.Properties.Name -join ", " }
+        throw "A catalog record has no product ID (fields: $fields)."
+    }
     $apiIds[[string]$id] = $p
 }
 $apiMissingDb = @($apiIds.Keys | Where-Object { -not $dbIds.ContainsKey($_) } | Sort-Object)
 $dbNotCatalog = @($dbIds.Keys | Where-Object { -not $apiIds.ContainsKey($_) } | Sort-Object)
 $stockDifferences = @()
+$stockCompared = 0
 foreach ($id in $apiIds.Keys) {
     if (-not $dbIds.ContainsKey($id)) { continue }
     $a = Field $apiIds[$id] @("stock", "stockQuantity", "quantity")
     $b = Field $dbIds[$id] @("stock", "stockQuantity", "quantity")
-    if ($null -ne $a -and $null -ne $b -and [decimal]$a -ne [decimal]$b) {
-        $stockDifferences += [pscustomobject]@{ ProductId = $id; ApiStock = $a; DbStock = $b }
+    if ($null -ne $a -and $null -ne $b) {
+        $stockCompared++
+        if ([decimal]$a -ne [decimal]$b) {
+            $stockDifferences += [pscustomobject]@{ ProductId = $id; ApiStock = $a; DbStock = $b }
+        }
     }
 }
 Write-Host ""
@@ -56,6 +75,7 @@ Write-Host "PostgreSQL product rows: $($db.Count)"
 Write-Host "Catalog API items: $($api.Count)"
 Write-Host "API IDs not in PostgreSQL: $($apiMissingDb.Count)"
 Write-Host "PostgreSQL IDs excluded from API: $($dbNotCatalog.Count)"
+Write-Host "Stock values compared: $stockCompared"
 Write-Host "Stock mismatches on shared IDs: $($stockDifferences.Count)"
 if ($apiMissingDb.Count) { Write-Host "Unexpected API-only IDs:"; $apiMissingDb | ForEach-Object { Write-Host "  $_" } }
 if ($dbNotCatalog.Count) {
@@ -70,5 +90,6 @@ if ($dbNotCatalog.Count) {
 if ($stockDifferences.Count) { $stockDifferences | Format-Table -AutoSize | Out-Host }
 if ($apiMissingDb.Count -gt 0) { throw "FAIL: Some catalog product IDs do not exist in PostgreSQL." }
 if ($stockDifferences.Count -gt 0) { throw "FAIL: Some API inventory values disagree with PostgreSQL." }
-Write-Host "PASS: Every catalog API product has a PostgreSQL row, and compared stock values match." -ForegroundColor Green
+if ($stockCompared -eq 0) { Write-Warning "Could not identify stock columns for comparison; product ID audit passed, but stock was NOT checked." }
+Write-Host "PASS: Every catalog API product has a PostgreSQL row, and any compared stock values match." -ForegroundColor Green
 Write-Host "Note: This audits the catalog API, not every DOM element, payment, or order transaction."
