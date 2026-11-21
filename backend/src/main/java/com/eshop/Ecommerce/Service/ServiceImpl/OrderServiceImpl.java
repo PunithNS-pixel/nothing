@@ -11,6 +11,7 @@ import com.eshop.Ecommerce.Service.CartService;
 import com.eshop.Ecommerce.Service.OrderService;
 import com.eshop.Ecommerce.Util.AuthUtil;
 import com.eshop.Ecommerce.extension.DomainEvents;
+import com.eshop.Ecommerce.Service.CartOfferService;
 import com.eshop.Ecommerce.extension.OrderTrackingService;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
@@ -34,6 +35,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     AddressRepository addressRepository;
+
+    @Autowired
+    CartOfferService offerPricing;
 
     @Autowired
     OrderItemRepo orderItemRepository;
@@ -89,10 +93,16 @@ public class OrderServiceImpl implements OrderService {
         if(address.getUser()==null || !emailId.equalsIgnoreCase(address.getUser().getEmail())) {
             throw new APIException("Shipping address does not belong to the current customer");
         }
+        // Calculate server-authoritative subtotal and coupon from persisted cart items.
+        CartOfferService.Quote quote=offerPricing.quote(cart,emailId,true);
+        if(quote.total()<=0)throw new APIException("Cannot place a zero-value order");
         Order order = new Order();
         order.setEmail(emailId);
         order.setOrderDate(LocalDate.now());
-        order.setTotalAmount(cart.getTotalPrice());
+        order.setOrderSubtotal(quote.subtotal());
+        order.setDiscountAmount(quote.discount());
+        order.setOfferCode(quote.applied()?quote.code():null);
+        order.setTotalAmount(quote.total());
         order.setOrderStatus("Accepted");
         order.setAddress(address);
 
@@ -139,6 +149,12 @@ public class OrderServiceImpl implements OrderService {
             // Remove items from cart
             cartService.deleteProductFromCart(cart.getCartId(), item.getProduct().getProductId());
         });
+
+        // Redeem under a pessimistic offer row lock, in the SAME transaction as
+        // stock reservation, order insertion and Kafka outbox events.
+        offerPricing.redeem(quote,emailId,cart);
+        cart.setCouponCode(null);
+        cartRepository.save(cart);
 
         tracking.recordPlaced(savedOrder);
         domainEvents.record("ORDER_PLACED", null, savedOrder.getOrderId());

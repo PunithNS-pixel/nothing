@@ -12,6 +12,9 @@ public class StripeCheckoutAttempt {
  @Column(nullable=false) private Long addressId;
  @Column(nullable=false) private long expectedAmount;
  @Column(nullable=false,length=4000) private String cartFingerprint;
+ // Values snapshotted before redirect; webhook revalidates against the live cart.
+ @Column(length=32) private String offerCode;
+ private Long discountPaise;
  @Column(nullable=false,length=20) private String status="PENDING";
  private Long orderId;
  @Column(nullable=false) private Instant createdAt=Instant.now();

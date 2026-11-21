@@ -35,6 +35,9 @@ public class Order {
     private Payment payment;
 
     private Double totalAmount;
+    private Double orderSubtotal;
+    private Double discountAmount;
+    @Column(length=32) private String offerCode;
     private String orderStatus;
 
     // Optional, manually entered fulfillment data; not an active courier integration.

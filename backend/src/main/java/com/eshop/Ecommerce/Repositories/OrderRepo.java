@@ -16,4 +16,6 @@ public interface OrderRepo extends JpaRepository<Order, Long> {
     java.util.List<Order> findByEmailIgnoreCaseOrderByOrderDateDesc(String email);
     @Query("SELECT COALESCE(SUM (o.totalAmount),0) FROM Order o")
     Double getTotalRevenue();
+
+    long countByEmailIgnoreCaseAndOfferCodeIgnoreCase(String email, String offerCode);
 }

@@ -29,5 +29,9 @@ public class Cart {
 
     private Double totalPrice=0.0;
 
+    // Customer-selected promo, resolved and revalidated by the server at checkout.
+    @Column(name="coupon_code",length=32)
+    private String couponCode;
+
 
 }
