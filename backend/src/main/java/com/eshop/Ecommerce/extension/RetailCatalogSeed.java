@@ -111,6 +111,12 @@ public class RetailCatalogSeed {
      case "Arabica Coffee Beans 250g" -> "https://images.unsplash.com/photo-1769437082791-8c9af44d7c28?auto=format&fit=crop&w=800&q=82";
      case "Dark Chocolate 70 Percent 100g" -> "https://images.unsplash.com/photo-1633782330753-a346e5303840?auto=format&fit=crop&w=800&q=82";
      case "Vitamin C Face Serum 30ml" -> "https://images.unsplash.com/photo-1777450793530-99a0e7b7fc53?auto=format&fit=crop&w=800&q=82";
+     case "Noise Cancelling Headphones" -> "https://images.unsplash.com/photo-1599669454515-1b2e0173f302?auto=format&fit=crop&w=800&q=82";
+     case "10000mAh Power Bank" -> "https://images.unsplash.com/photo-1601898532138-9f145a2ad69e?auto=format&fit=crop&w=800&q=82";
+     case "Laptop Stand Aluminium" -> "https://images.unsplash.com/photo-1700451761287-b8b21c406208?auto=format&fit=crop&w=800&q=82";
+     case "Portable SSD 512GB" -> "https://images.unsplash.com/photo-1756142752564-586c77618757?auto=format&fit=crop&w=800&q=82";
+     case "Polarized Sunglasses" -> "https://images.unsplash.com/photo-1711223499758-8aef018b720e?auto=format&fit=crop&w=800&q=82";
+     case "Unisex Hoodie" -> "https://images.unsplash.com/photo-1742911072884-3cbf51117247?auto=format&fit=crop&w=800&q=82";
      default -> null;
    };
  }
