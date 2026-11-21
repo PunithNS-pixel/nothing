@@ -210,6 +210,14 @@ function drawProducts(){
   else addItem(b.dataset.add);
  });
  document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>showQuickView(b.dataset.quick));
+ document.querySelectorAll('.product-card .product-visual').forEach(visual=>{
+  const id=visual.querySelector('[data-quick]')?.dataset.quick;
+  if(!id)return;
+  visual.setAttribute('role','button');visual.setAttribute('tabindex','0');
+  visual.setAttribute('aria-label','Open product details and image gallery');
+  visual.addEventListener('click',event=>{if(event.target.closest('button'))return;showQuickView(id)});
+  visual.addEventListener('keydown',event=>{if(event.target!==visual)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();showQuickView(id)}});
+ });
 }
 async function applyFilters(){
  const sequence=++searchRequestSeq;
