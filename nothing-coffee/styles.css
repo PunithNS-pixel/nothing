@@ -63,3 +63,13 @@
 .tracking-actions .primary-choice{flex:1;min-width:135px}
 .fulfillment-row{display:block;width:100%;margin:9px 0}
 @media(max-width:640px){.tracking-order-card{padding:13px}.tracking-actions{flex-direction:column}.tracking-status{padding:12px}}
+
+
+/* Accessible, keyboard-friendly persisted wishlist controls. */
+.product-visual{position:relative}
+.wishlist-save{position:absolute;top:12px;right:12px;z-index:3;display:grid;place-items:center;
+ width:42px;height:42px;border:1px solid rgba(27,38,27,.16);border-radius:50%;
+ background:#fff;color:#24331e;font-size:26px;line-height:1;cursor:pointer;
+ box-shadow:0 4px 18px rgba(0,0,0,.07)}
+.wishlist-save[aria-pressed="true"]{color:#b42b4c;background:#fff3f5}
+.wishlist-save:hover,.wishlist-save:focus-visible{outline:2px solid #25391d;outline-offset:2px}
