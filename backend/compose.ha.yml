@@ -116,7 +116,7 @@ services:
     volumes:
       - ../nothing-coffee:/usr/share/nginx/html:ro
       - ./nginx.ha-http.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./nginx.ha-proxy.inc:/etc/nginx/snippets/nothing-api-proxy.inc:ro
+      - ./nginx.ha-proxy.inc:/etc/nginx/nothing-api-proxy.inc:ro
     ports:
       - "127.0.0.1:${FRONTEND_HTTP_PORT:-8000}:80"
   pgadmin:
@@ -135,7 +135,7 @@ services:
   prometheus:
     profiles: ["monitoring"]
     image: prom/prometheus:v2.55.1
-    volumes: ["./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    volumes: ["./infrastructure/monitoring/prometheus.ha.yml:/etc/prometheus/prometheus.yml:ro"]
     ports: ["127.0.0.1:9090:9090"]
   grafana:
     profiles: ["monitoring"]
