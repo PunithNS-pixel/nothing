@@ -8,8 +8,8 @@ let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBus
 const productById=id=>catalog.find(p=>String(p.productId)===String(id));
 const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const icons={'Electronics':'🎧','Fashion':'👟','Home & Living':'💡','Grocery':'🛒','Beauty':'🧴','Coffee':'☕'};
-const tones={'Electronics':'#e8eefa','Fashion':'#ffede8','Home & Living':'#f2eddc','Grocery':'#ecf6db','Beauty':'#ffecf2','Coffee':'#f5e9d8'};
+const icons={'Electronics':'🎧','Gadgets':'🔌','Toys & Games':'🧸','Fashion':'👟','Home & Living':'💡','Grocery':'🛒','Beauty':'🧴','Coffee':'☕'};
+const tones={'Electronics':'#e4eae2','Gadgets':'#dce5dd','Toys & Games':'#e8f3d7','Fashion':'#e9e9df','Home & Living':'#f0ebd8','Grocery':'#ecf6db','Beauty':'#ffecf2'};
 // A recognisable, product-specific illustration is preferable to an unrelated stock photo.
 const productIcons=[
  [/earbuds/i,'🎧'],[/headphones/i,'🎧'],[/speaker/i,'🔊'],[/charger/i,'🔌'],[/power bank/i,'🔋'],[/keyboard/i,'⌨️'],[/laptop stand/i,'💻'],[/webcam/i,'📷'],[/usb-c multiport/i,'🔗'],[/charging pad/i,'⚡'],[/ssd/i,'💾'],[/watch/i,'⌚'],
@@ -77,35 +77,64 @@ async function changeQty(id,delta){
 async function addItem(id){await changeQty(id,1)}
 function openCart(){$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
 function closeCart(){$('overlay').hidden=true;$('cartDrawer').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true')}
+function showQuickView(id){
+ const p=productById(id);if(!p)return;
+ const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
+ const title=document.createElement('h2');title.textContent='THE DETAIL / '+(p.brand||'NOTHING SELECT');root.append(title);
+ const panel=document.createElement('div');panel.className='quick-panel';
+ const picture=document.createElement('div');
+ if(p.image&&/^https:\/\//.test(p.image)){
+  const img=document.createElement('img');img.src=p.image;img.alt='Illustrative product photo for '+p.name;
+  img.onerror=()=>{picture.textContent=chooseIcon(p)};picture.append(img);
+ }else picture.textContent=chooseIcon(p);
+ const info=document.createElement('div');
+ const heading=document.createElement('h3');heading.textContent=p.name;
+ const desc=document.createElement('p');desc.textContent=p.description;
+ const stock=document.createElement('p');stock.textContent=p.category+' · '+p.city+' · '+p.stock+' available';
+ const price=document.createElement('strong');price.className='quick-price';price.textContent=money(itemPrice(p));
+ const add=document.createElement('button');add.className='primary-choice';add.textContent=p.stock>0?'ADD TO BAG ↗':'OUT OF STOCK';add.disabled=p.stock<=0;
+ add.onclick=async()=>{dialog.close();await addItem(p.productId);openCart()};
+ const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>dialog.close();
+ info.append(heading,desc,stock,price,add,close);panel.append(picture,info);root.append(panel);dialog.showModal();
+}
 function drawProducts(){
- $('resultCount').textContent=visible.length+' PRODUCT'+(visible.length===1?'':'S')+' FOUND';
+ $('resultCount').textContent=visible.length+' OBJECT'+(visible.length===1?'':'S')+' IN THIS EDIT';
  $('emptyState').hidden=visible.length>0;
  $('productGrid').innerHTML=visible.map(p=>{
-  const stock=Number(p.stock),icon=chooseIcon(p),safeId=Number(p.productId);
+  const stock=Number(p.stock),safeId=Number(p.productId);
   let image=productArtwork(p);
-  if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
+  if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" decoding="async" src="'+escape(p.image)+'" alt="'+escape(p.name)+' — illustrative photography">';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+(tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'● IN STOCK':'SOLD OUT')+'</span>'+image+'<button type="button" class="quick-view" data-quick="'+safeId+'" aria-label="Quick view '+escape(p.name)+'">QUICK VIEW ↗</button></div><div class="product-info"><div class="brand-tag">'+escape(p.brand||'NOTHING SELECT')+'</div><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD TO BAG +')+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add));
+ document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>showQuickView(b.dataset.quick));
 }
 async function applyFilters(){
  const sequence=++searchRequestSeq;
  let products=catalog.slice();
- const city=$('cityFilter').value,range=$('priceFilter').value,sort=$('sortFilter').value;
+ const city=$('cityFilter').value,range=$('priceFilter').value,sort=$('sortFilter').value,brand=$('brandFilter').value;
  const [min,max]=range?range.split('-').map(Number):[null,null];
- if(searchText||category!=='All'||city||range){
+ if(searchText||category!=='All'||city||range||brand){
   const params=new URLSearchParams({q:searchText,size:'100'});
   if(category!=='All')params.set('category',category);
   if(city)params.set('city',city);
   if(range){params.set('minPrice',String(min));params.set('maxPrice',String(max))}
   $('sourceStatus').textContent='● SEARCHING OPENSEARCH…';
   try{
-   const data=await request('/api/search/products?'+params);
-   if(sequence!==searchRequestSeq)return;
-   const ids=new Set((data.hits?.hits||[]).map(hit=>String(hit._source?.productId)));
+   const ids=new Set();let page=0,total=Infinity;
+   while(page<10&&page*100<total){
+    params.set('page',String(page));
+    const data=await request('/api/search/products?'+params);
+    if(sequence!==searchRequestSeq)return;
+    const hits=data.hits?.hits||[];
+    for(const hit of hits)ids.add(String(hit._source?.productId));
+    total=Number(data.hits?.total?.value||0);
+    if(!hits.length)break;
+    page++;
+   }
    products=catalog.filter(p=>ids.has(String(p.productId)));
-   $('sourceStatus').textContent='● OPENSEARCH RESULTS';
+   $('sourceStatus').textContent='● OPENSEARCH INDEX';
   }catch(e){
    if(sequence!==searchRequestSeq)return;
    notify('Search is temporarily unavailable: '+e.message,true);
@@ -113,8 +142,9 @@ async function applyFilters(){
   }
  }else $('sourceStatus').textContent='● LIVE POSTGRESQL INVENTORY';
  if(sequence!==searchRequestSeq)return;
- if(sort==='price-asc')products.sort((a,b)=>a.price-b.price);
- if(sort==='price-desc')products.sort((a,b)=>b.price-a.price);
+ if(brand)products=products.filter(p=>(p.brand||'NOTHING SELECT')===brand);
+ if(sort==='price-asc')products.sort((a,b)=>itemPrice(a)-itemPrice(b));
+ if(sort==='price-desc')products.sort((a,b)=>itemPrice(b)-itemPrice(a));
  if(sort==='name')products.sort((a,b)=>a.name.localeCompare(b.name));
  visible=products;drawProducts();
 }
@@ -128,6 +158,8 @@ function setupFilters(){
  const categories=['All',...new Set(catalog.map(p=>p.category))];
  $('categoryChips').innerHTML=categories.map(c=>'<button class="chip '+(c===category?'active':'')+'" data-category="'+escape(c)+'">'+escape(c).toUpperCase()+'</button>').join('');
  document.querySelectorAll('[data-category]').forEach(x=>x.onclick=()=>setCategory(x.dataset.category));
+ const brands=[...new Set(catalog.map(p=>p.brand||'NOTHING SELECT'))].sort();
+ $('brandFilter').innerHTML='<option value="">All brands</option>'+brands.map(b=>'<option value="'+escape(b)+'">'+escape(b)+'</option>').join('');
  const cities=[...new Set(catalog.map(p=>p.city).filter(Boolean))].sort();
  $('cityFilter').innerHTML='<option value="">All India</option>'+cities.map(c=>'<option value="'+escape(c)+'">'+escape(c)+'</option>').join('');
 }
@@ -137,7 +169,7 @@ async function loadCatalog(){
   if(!Array.isArray(data))throw new Error('Invalid catalog response');
   catalog=data.filter(p=>p&&p.productId!=null).map(p=>({...p,price:Number(p.price),stock:Number(p.stock)}));
   if(!catalog.length){$('productGrid').innerHTML='<div class="loading-card">No products found. Enable SEED_RETAIL_CATALOG for the demo or add products through the API.</div>';return}
-  setupFilters();await applyFilters();updateCart();
+  setupFilters();if($('heroProductCount'))$('heroProductCount').textContent=catalog.length+'+';await applyFilters();updateCart();
  }catch(e){$('productGrid').innerHTML='<div class="loading-card">Unable to connect to the retail API on '+escape(API)+'. '+escape(e.message)+'</div>';$('sourceStatus').textContent='● BACKEND OFFLINE';notify('Backend connection failed. Check API port and CORS.',true)}
 }
 async function loadServerCart(){
@@ -445,9 +477,9 @@ function bind(){
  $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchDebounce);$('searchGo').click()}});
  $('search').addEventListener('input',()=>{clearTimeout(searchDebounce);searchDebounce=setTimeout(()=>{searchText=$('search').value.trim();applyFilters()},350)});
  $('search').addEventListener('search',()=>{searchText=$('search').value.trim();applyFilters()});
- ['cityFilter','priceFilter','sortFilter'].forEach(id=>$(id).onchange=applyFilters);
+ ['cityFilter','priceFilter','sortFilter','brandFilter'].forEach(id=>$(id).onchange=applyFilters);
  document.querySelectorAll('[data-category-nav]').forEach(el=>el.onclick=()=>setCategory(el.dataset.categoryNav));
- $('clearFilters').onclick=()=>{searchText='';$('search').value='';$('cityFilter').value='';$('priceFilter').value='';setCategory('All')};
+ $('clearFilters').onclick=()=>{searchText='';$('search').value='';$('cityFilter').value='';$('priceFilter').value='';$('brandFilter').value='';setCategory('All')};
  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCart()});
 }
 bind();syncAccountButtons();loadCatalog().then(loadSession).then(resumeStripeCheckout);

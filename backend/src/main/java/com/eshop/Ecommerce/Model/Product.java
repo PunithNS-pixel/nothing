@@ -27,6 +27,8 @@ public class Product {
     private String description;
     private Integer quantity;
     private String image;
+    @Column(length = 90)
+    private String brand;
     private String city;
     private double price;
     private double discount;

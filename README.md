@@ -1,3 +1,26 @@
+# NOTHING MARKET — Spring Boot marketplace (editorial redesign)
+
+> **New development branch:** `feat/nothing-marketplace-springboot` forked from `backend`. Original `main`, `backend` and Python/FastAPI `feat/nothing` remain unchanged.
+
+This branch is a **multicategory e-commerce demonstration** with a redesigned bold Nothing-style website and the original **Java Spring Boot** commerce services. It adds **56 product records** across Fashion, Toys & Games, Electronics (Tech), and Gadgets with **23 synthetic demo brands** and **28 distinct representative photo references**, on top of the original 46-product seed (approximately 102 items on a clean database). Prices, brands, stock and images in this seed are fictitious and illustrative, **not actual merchant offers**. Product photos are licensed from Unsplash but may **not** depict the exact named demo item. Do not advertise them as verified authentic inventory or take real payments until real seller/product validation is complete.
+
+Read [Marketplace Setup](docs/README_MARKETPLACE.md), [Frontend Guide](nothing-coffee/README.md), and [Photo Credits](nothing-coffee/PHOTO_CREDITS.md).
+
+### Quick start (Mac / Linux)
+
+```bash
+git clone -b feat/nothing-marketplace-springboot https://github.com/PunithNS-pixel/nothing.git
+cd nothing
+cp backend/.env.example backend/.env
+# Set LOCAL_DB_PASSWORD, RABBITMQ_PASSWORD, JWT_SECRET, optional ADMIN_USERNAME and ADMIN_PASSWORD.
+# Set SEED_RETAIL_CATALOG=true (already in the local Compose stack).
+docker compose -f backend/compose.yml --env-file backend/.env up -d --build
+```
+
+Open **http://localhost:8000**. API: **http://localhost:8090**. Brand names are sent to the UI in `GET /api/store/catalog` and indexed as searchable text in OpenSearch. The JS brand filter refines **OpenSearch-backed** result IDs; COD/Stripe prices are always recalculated by Spring Boot. Local service startup and a live Stripe test transaction still need to be checked on your computer, and the full distributed stack is not exercised in GitHub's Java-only CI.
+
+---
+
 # Nothing Market — full-stack retail demo
 
 A retail storefront for products across India: **electronics, fashion, home & living, grocery, and beauty**.
@@ -35,7 +58,7 @@ docker compose -f backend/compose.yml --env-file backend/.env ps
 
 Use strong random JWT secret and passwords. Default frontend: **http://localhost:8000**, backend API: **http://localhost:8090**, metrics: **http://localhost:8091**. Port values can be overridden with APP_HTTP_PORT and APP_METRICS_PORT. The frontend API URL is also configurable in the browser's localStorage key `nothing-api-url` (default 8090).
 
-The development-only `SEED_RETAIL_CATALOG=true` adds 14 sample products to empty/migrated databases and emits product-change events. It does not delete existing data. Existing Coffee seed is disabled.
+The development-only `SEED_RETAIL_CATALOG=true` adds 46 original sample products plus 56 optional multi-brand demo items in this branch to empty/migrated databases and emits product-change events. It does not delete existing data. Existing Coffee seed is disabled.
 
 ## Aiven services (required for hackathon submission)
 

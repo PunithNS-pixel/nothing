@@ -25,7 +25,7 @@ public class RetailStoreController {
   item.put("price",p.getSpecialPrice());item.put("originalPrice",p.getPrice());
   item.put("stock",p.getQuantity());item.put("city",p.getCity());
   item.put("category",p.getCategory()==null?"Other":p.getCategory().getCategoryName());
-  item.put("image",p.getImage());return item;
+  item.put("image",p.getImage());item.put("brand",p.getBrand()==null||p.getBrand().isBlank()?"NOTHING SELECT":p.getBrand());return item;
  }
  @GetMapping("/api/store/categories")
  public List<String> categories(){
