@@ -43,7 +43,7 @@ public class ProductGalleryManagementController {
    if(raw==null||raw.length()>1500)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid image URL");
    String url=raw.trim();
    URI uri;
-   try{uri=URI.create(url)}catch(IllegalArgumentException e){
+   try{uri=URI.create(url);}catch(IllegalArgumentException e){
     throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid image URL");
    }
    String host=uri.getHost();
