@@ -5,6 +5,8 @@ import com.eshop.Ecommerce.Repositories.CategoryRepo;
 import com.eshop.Ecommerce.Repositories.OrderRepo;
 import com.eshop.Ecommerce.Util.AuthUtil;
 import com.eshop.Ecommerce.Payload.OrderDTO;
+import com.eshop.Ecommerce.Payload.OrderItemDTO;
+import com.eshop.Ecommerce.Payload.ProductDTO;
 import org.modelmapper.ModelMapper;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
@@ -34,6 +36,7 @@ public class RetailStoreController {
   return categories.findAll().stream().map(c->c.getCategoryName()).filter(n->!"Coffee".equalsIgnoreCase(n)).sorted().toList();
  }
  @GetMapping("/api/customer/orders")
+ @org.springframework.transaction.annotation.Transactional(readOnly=true)
  public List<OrderDTO> myOrders(){
   // Map only scalar fields while the repository query is complete.
   // ModelMapper previously traversed lazy orderItems after the Hibernate
@@ -46,7 +49,18 @@ public class RetailStoreController {
      dto.setOrderDate(o.getOrderDate());
      dto.setTotalAmount(o.getTotalAmount());
      dto.setOrderStatus(o.getOrderStatus());
-     dto.setOrderItems(java.util.List.of());
+     dto.setOrderItems(o.getOrderItems().stream().map(item->{
+       OrderItemDTO detail=new OrderItemDTO();
+       detail.setOrderItemId(item.getOrderItemId());
+       detail.setQuantity(item.getQuantity());
+       detail.setOrderedProductPrice(item.getOrderedProductPrice());
+       detail.setDiscount(item.getDiscount());
+       if(item.getProduct()!=null){
+         ProductDTO product=mapper.map(item.getProduct(), ProductDTO.class);
+         detail.setProduct(product);
+       }
+       return detail;
+     }).toList());
      return dto;
    }).toList();
  }
