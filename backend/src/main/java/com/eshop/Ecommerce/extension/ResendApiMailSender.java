@@ -119,6 +119,9 @@ public class ResendApiMailSender implements JavaMailSender {
  @Override public void send(MimeMessage mail) throws MailException {
   if(mail==null)throw new MailPreparationException(new IllegalArgumentException("Null email"));
   try {
+   // JavaMailSender normally saves MIME headers before sending. Without this,
+   // MimeMessageHelper's multipart content can still advertise text/plain.
+   mail.saveChanges();
    Address[] froms=mail.getFrom();
    if(froms==null||froms.length!=1 || !(froms[0] instanceof InternetAddress origin)
       || !fromAddress.equalsIgnoreCase(origin.getAddress()))
