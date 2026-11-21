@@ -43,6 +43,9 @@ public class Address {
     @NotBlank
     @Size(min=5 ,message = "Pincode name must be atleast 5 characters")
     private String pincode;
+    // Nullable for existing customer addresses created before checkout phone support.
+    @Column(length=15)
+    private String phoneNumber;
 
 
     @ManyToOne
