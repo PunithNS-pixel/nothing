@@ -34,10 +34,11 @@ class GmailApiMailSenderTest {
   return r;
  }
  private void mockSuccess()throws Exception{
+  HttpResponse<String> tokenReply=response(200,"{\"access_token\":\"fake-access\",\"expires_in\":3599}");
+  HttpResponse<String> sentReply=response(200,"{\"id\":\"gmail-id-42\",\"threadId\":\"t-42\"}");
   when(http.send(any(HttpRequest.class),
     org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
-   .thenReturn(response(200,"{\"access_token\":\"fake-access\",\"expires_in\":3599}"),
-               response(200,"{\"id\":\"gmail-id-42\",\"threadId\":\"t-42\"}"));
+   .thenReturn(tokenReply,sentReply);
  }
  @Test void sendsHtmlAndPlainTextViaOnlyGmailApiWithOAuthRefresh()throws Exception{
   mockSuccess();
@@ -75,9 +76,10 @@ class GmailApiMailSenderTest {
     org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
  }
  @Test void rejectedGoogleRefreshFailsClosedWithoutLeakingSecrets()throws Exception{
+  HttpResponse<String> invalidToken=response(400,"{\"error\":\"invalid_grant\"}");
   when(http.send(any(HttpRequest.class),
     org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
-   .thenReturn(response(400,"{\"error\":\"invalid_grant\"}"));
+   .thenReturn(invalidToken);
   SimpleMailMessage otp=new SimpleMailMessage();
   otp.setTo("buyer@example.org");otp.setSubject("OTP");otp.setText("Code 123456");
   MailAuthenticationException ex=assertThrows(MailAuthenticationException.class,
