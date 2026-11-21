@@ -26,6 +26,12 @@ class MarketplaceOfferCheckoutTest {
  @Autowired CartOfferService pricing;
  @Autowired OrderService orderService;
  @Autowired OrderRepo orders;
+ @Autowired org.springframework.transaction.support.TransactionTemplate transactions;
+
+ private CartOfferService.Quote quote(Bag bag,boolean strict){
+  return transactions.execute(status->pricing.quote(
+    carts.findCartByEmail(bag.user().getEmail()),bag.user().getEmail(),strict));
+ }
 
  private record Bag(User user,Cart cart,Product product,Address address){}
  private Bag bag(String marker,int quantity,double price) {
@@ -65,19 +71,18 @@ class MarketplaceOfferCheckoutTest {
   MarketplaceOffer offer=campaign("TIER"+suffix,MarketplaceOffer.Kind.PERCENT,
      "10","2000","3000","150",1,false);
   bag.cart().setCouponCode(offer.getCode());carts.saveAndFlush(bag.cart());
-  var quote=pricing.quote(carts.findCartByEmail(bag.user().getEmail()),bag.user().getEmail(),false);
+  var quote=quote(bag,false);
   assertFalse(quote.applied());assertEquals(1500,quote.total(),0.01);
   assertTrue(quote.message().contains("more"));
-  assertThrows(ResponseStatusException.class,()->pricing.quote(
-     carts.findCartByEmail(bag.user().getEmail()),bag.user().getEmail(),true));
+  assertThrows(ResponseStatusException.class,()->quote(bag,true));
   CartItem line=cartItems.findCartItemByProductIdAndCartId(bag.cart().getCartId(),bag.product().getProductId());
   line.setProductPrice(1500.0);cartItems.saveAndFlush(line);
-  var eligible=pricing.quote(carts.findCartByEmail(bag.user().getEmail()),bag.user().getEmail(),true);
+  var eligible=quote(bag,true);
   assertEquals(3000.0,eligible.subtotal(),0.01);
   assertEquals(150.0,eligible.discount(),0.01);
   assertEquals(2850.0,eligible.total(),0.01);
   line.setProductPrice(1600.0);cartItems.saveAndFlush(line);
-  assertFalse(pricing.quote(carts.findCartByEmail(bag.user().getEmail()),bag.user().getEmail(),false).applied());
+  assertFalse(quote(bag,false).applied());
  }
 
  @Test
@@ -114,7 +119,7 @@ class MarketplaceOfferCheckoutTest {
   Bag bag=bag(suffix,2,1000);
   var automatic=campaign("AUTO"+suffix,MarketplaceOffer.Kind.PERCENT,
     "5","1500",null,"90",3,true);
-  var quote=pricing.quote(carts.findCartByEmail(bag.user().getEmail()),bag.user().getEmail(),true);
+  var quote=quote(bag,true);
   assertTrue(quote.applied());assertTrue(quote.automatic());
   assertEquals(automatic.getCode(),quote.code());
   assertEquals(90.0,quote.discount(),0.01);
