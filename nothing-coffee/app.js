@@ -396,7 +396,16 @@ async function login(mode=null){
  const data=await showDialog(signup?'CREATE YOUR ACCOUNT':'WELCOME BACK',fields,signup?'SIGN UP':'SIGN IN');
  if(!data)return false;
  try{
-  if(signup)await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
+  if(signup){
+   await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
+   const otp=await showDialog('VERIFY YOUR EMAIL',[
+     {name:'code',label:'SIX-DIGIT CODE SENT TO '+data.email,type:'text',placeholder:'123456',minLength:6}
+   ],'VERIFY EMAIL');
+   if(!otp)return false;
+   if(!/^[0-9]{6}$/.test(otp.code))throw new Error('Enter the six-digit code from your email.');
+   await request('/api/auth/verify-email',{method:'POST',
+     body:JSON.stringify({username:data.username,code:otp.code})});
+  }
   await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
   const session=await verifySession();
   if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
