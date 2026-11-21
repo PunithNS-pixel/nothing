@@ -1,7 +1,7 @@
 name: NOTHING Marketplace Docker integration
 on:
   push:
-    branches: [feat/nothing-marketplace-springboot]
+    branches: [feat/nothing-marketplace-springboot, final]
   workflow_dispatch:
 permissions:
   contents: read

@@ -35,6 +35,10 @@ curl -fsS "$BASE/" -o "$HTML_FILE"
 curl -fsS "$BASE/app.js" -o "$JS_FILE"
 grep -q 'NOTHING MARKET' "$HTML_FILE"
 grep -q 'brandFilter' "$JS_FILE"
+if grep -Eq 'DEMO MARKETPLACE|BUILT WITH SPRING BOOT|Powered by OpenSearch|Live PostgreSQL catalog|class="service-strip"' "$HTML_FILE"; then
+  echo 'FAIL: consumer storefront still displays engineering/demo banner or service strip'
+  exit 1
+fi
 printf 'STOREFRONT PASS\n'
 printf '\n[4/8] OpenSearch indexing and brand search\n'
 for attempt in $(seq 1 40); do

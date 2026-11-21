@@ -62,7 +62,7 @@ function updateCart(){
  $('cartItems').innerHTML=items.length?items.map(([id,q])=>{
    const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+escape(id)+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.variantLabel?('SIZE '+p.variantLabel+' · '):'')+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
  }).join(''):'<div class="empty-state"><strong>YOUR BAG IS EMPTY.</strong><p>Some good stuff is waiting for you.</p></div>';
- $('cartSyncStatus').textContent=user?'Saved to your PostgreSQL cart':'Guest bag saved on this device';
+ $('cartSyncStatus').textContent=user?'Bag saved to your account':'Bag saved on this device';
  $('checkoutBtn').disabled=!count||cartBusy;
  bindImageFallbacks($('cartItems'));
  document.querySelectorAll('[data-qty]').forEach(el=>el.onclick=()=>changeQty(el.dataset.qty,Number(el.dataset.delta)));
@@ -142,7 +142,7 @@ function showQuickView(id){
   }
   sizeGuide.textContent=selected.sizeType==='SHOE'?
    'Illustrative UK sizing; lengths are approximate foot measurements. Check manufacturer measurements before buying.' :
-   'Demo apparel sizes. Actual chest, shoulder and garment measurements require supplier data.';
+   'Sizes are approximate. Check item measurements before placing an order.';
   optionsWrap.append(sizeTitle,optionButtons,sizeGuide);
  }
  if(p.category==='Toys & Games'){
@@ -151,7 +151,7 @@ function showQuickView(id){
   optionsWrap.append(age);
  }
  const details=document.createElement('p');details.className='size-guide';
- details.textContent='Item stock and price are verified by Spring Boot at checkout. Photos are representative.';
+ details.textContent='Price and availability are confirmed at checkout. Photos are illustrative.';
  add.onclick=async()=>{
   const picked=selected;
   dialog.close();
@@ -188,7 +188,7 @@ function drawProducts(){
 async function applyFilters(){
  const sequence=++searchRequestSeq;
  if(!catalog.length){
-  $('sourceStatus').textContent='● CATALOG NOT READY';
+  $('sourceStatus').textContent='● LOADING FINDS';
   $('resultCount').textContent='WAITING FOR CATALOG';
   $('emptyState').hidden=true;
   return;
@@ -201,7 +201,7 @@ async function applyFilters(){
   if(category!=='All')params.set('category',category);
   if(city)params.set('city',city);
   if(range){params.set('minPrice',String(min));params.set('maxPrice',String(max))}
-  $('sourceStatus').textContent='● SEARCHING OPENSEARCH…';
+  $('sourceStatus').textContent='● FINDING YOUR MATCHES…';
   try{
    const ids=new Set();let page=0,total=Infinity;
    while(page<10&&page*100<total){
@@ -215,13 +215,13 @@ async function applyFilters(){
     page++;
    }
    products=catalog.filter(p=>ids.has(String(p.productId)));
-   $('sourceStatus').textContent='● OPENSEARCH INDEX';
+   $('sourceStatus').textContent='● RESULTS UPDATED';
   }catch(e){
    if(sequence!==searchRequestSeq)return;
    notify('Search is temporarily unavailable: '+e.message,true);
    products=[];$('sourceStatus').textContent='● SEARCH UNAVAILABLE';
   }
- }else $('sourceStatus').textContent='● LIVE POSTGRESQL INVENTORY';
+ }else $('sourceStatus').textContent='● THE FULL COLLECTION';
  if(sequence!==searchRequestSeq)return;
  if(brand)products=products.filter(p=>(p.brand||'NOTHING SELECT')===brand);
  if(sort==='price-asc')products.sort((a,b)=>itemPrice(a)-itemPrice(b));
@@ -246,22 +246,22 @@ function setupFilters(){
 }
 async function loadCatalog(attempt=0){
  try{
-  $('sourceStatus').textContent='● CONNECTING TO SPRING BOOT…';
+  $('sourceStatus').textContent='● LOADING THE COLLECTION…';
   const data=await request('/api/store/catalog');
   if(!Array.isArray(data))throw new Error('Invalid catalog response');
   catalog=data.filter(p=>p&&p.productId!=null).map(p=>({...p,price:Number(p.price),stock:Number(p.stock)}));
   if(!catalog.length){
    // An empty 200 response during Java startup must not look like a valid 0-result search.
    if(attempt<6){
-    $('productGrid').innerHTML='<div class="loading-card">Spring Boot is starting and loading demo products… (retry '+(attempt+1)+'/6)</div>';
-    $('sourceStatus').textContent='● WAITING FOR CATALOG SEED';
+    $('productGrid').innerHTML='<div class="loading-card">Your collection is getting ready… (retry '+(attempt+1)+'/6)</div>';
+    $('sourceStatus').textContent='● GETTING THINGS READY';
     await new Promise(resolve=>setTimeout(resolve,1800));
     return loadCatalog(attempt+1);
    }
-   $('sourceStatus').textContent='● CATALOG EMPTY · NEEDS ATTENTION';
+   $('sourceStatus').textContent='● COLLECTION UNAVAILABLE';
    $('resultCount').textContent='NO PRODUCT RECORDS RETURNED';
    $('emptyState').hidden=true;
-   $('productGrid').innerHTML='<div class="loading-card"><strong>THE CATALOG IS NOT READY.</strong><p>The API returned zero products. This is a database/seed issue, not a search filter. From the project root run: <code>bash scripts/repair-marketplace.sh</code></p><button type="button" id="retryCatalog" class="outline-button">RETRY CATALOG ↻</button></div>';
+   $('productGrid').innerHTML='<div class="loading-card"><strong>THE CATALOG IS NOT READY.</strong><p>We couldn’t load the collection right now. Please try again shortly.</p><button type="button" id="retryCatalog" class="outline-button">RETRY CATALOG ↻</button></div>';
    $('retryCatalog').onclick=()=>loadCatalog(0);
    return;
   }
@@ -271,15 +271,15 @@ async function loadCatalog(attempt=0){
  }catch(e){
   if(attempt<4){
    $('sourceStatus').textContent='● WAITING FOR API…';
-   $('productGrid').innerHTML='<div class="loading-card">Spring Boot API initializing… retry '+(attempt+1)+'/4</div>';
+   $('productGrid').innerHTML='<div class="loading-card">The store is getting ready… retry '+(attempt+1)+'/4</div>';
    await new Promise(resolve=>setTimeout(resolve,1800));
    return loadCatalog(attempt+1);
   }
-  $('sourceStatus').textContent='● BACKEND UNAVAILABLE';
+  $('sourceStatus').textContent='● STORE TEMPORARILY UNAVAILABLE';
   $('emptyState').hidden=true;
-  $('productGrid').innerHTML='<div class="loading-card"><strong>BACKEND CONNECTION FAILED.</strong><p>'+escape(e.message)+'</p><button id="retryCatalog" type="button" class="outline-button">TRY AGAIN ↻</button></div>';
+  $('productGrid').innerHTML='<div class="loading-card"><strong>CAN’T REACH THE STORE RIGHT NOW.</strong><p>'+escape(e.message)+'</p><button id="retryCatalog" type="button" class="outline-button">TRY AGAIN ↻</button></div>';
   $('retryCatalog').onclick=()=>loadCatalog(0);
-  notify('Cannot load Spring Boot catalog. Check Docker logs.',true);
+  notify('The collection is temporarily unavailable. Please try again.',true);
  }
 }
 async function loadServerCart(){
@@ -397,7 +397,7 @@ async function logout(){
  // Do not transfer one customer's bag to the next shopper on the same device.
  localStorage.removeItem('nothing-guest-cart');
  syncAccountButtons();await applyFilters();updateCart();
- notify('Signed out. Your saved account bag remains in PostgreSQL.');
+ notify('Signed out. Your bag will be here next time.');
 }
 async function accountAction(){
  if(!user){await login('LOGIN');return}
@@ -677,7 +677,7 @@ async function choosePaymentMethod(total){
   const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
   const h=document.createElement('h2');h.textContent='Payment method';root.append(h);
   root.insertAdjacentHTML('beforeend',checkoutSteps(3));
-  const intro=document.createElement('p');intro.textContent='Choose how you want to pay. Your payment and order are confirmed by the backend.';root.append(intro);
+  const intro=document.createElement('p');intro.textContent='Choose your preferred payment option. You’ll review everything before placing the order.';root.append(intro);
   const options=document.createElement('div');options.className='checkout-methods';root.append(options);
   let selected='COD';
   for(const [method,title,description] of [
@@ -732,7 +732,7 @@ async function selectDeliveryAddress(addresses){
  return new Promise(resolve=>{
   const d=$('modal'),root=$('modalContent');root.replaceChildren();
   const heading=document.createElement('h2');heading.textContent='WHERE SHOULD IT GO?';root.append(heading);
-  const intro=document.createElement('p');intro.textContent='Choose a saved delivery address or add another one. Your selected address is verified by Spring Boot.';root.append(intro);
+  const intro=document.createElement('p');intro.textContent='Choose an address for your delivery, or add a new one.';root.append(intro);
   const list=document.createElement('div');list.className='address-choices';root.append(list);
   let finished=false;
   const done=value=>{if(finished)return;finished=true;d.close();resolve(value)};
