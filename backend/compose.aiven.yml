@@ -7,8 +7,8 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "${APP_HTTP_PORT:-8090}:8080"
-      - "${APP_METRICS_PORT:-8091}:8081"
+      - "127.0.0.1:${APP_HTTP_PORT:-8090}:8080"
+      - "127.0.0.1:${APP_METRICS_PORT:-8091}:8081"
     restart: unless-stopped
     environment:
       DATABASE_URL: ${AIVEN_PG_JDBC_URL:?Set AIVEN_PG_JDBC_URL with sslmode=require}
@@ -80,7 +80,7 @@ services:
     volumes:
       - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     restart: unless-stopped
   grafana:
     image: grafana/grafana:11.3.0
@@ -89,7 +89,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set Grafana password}
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
     restart: unless-stopped
 
 volumes:
