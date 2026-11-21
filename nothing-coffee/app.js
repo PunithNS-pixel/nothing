@@ -157,7 +157,13 @@ function showQuickView(id){
   dialog.close();
   await addItem(picked.productId);
  };
- info.append(heading,desc,optionsWrap,stock,price,details,add,close);panel.append(picture,info);root.append(panel);
+ const save=document.createElement('button');save.type='button';save.className='outline-button';save.textContent='♡ SAVE TO WISHLIST';
+ save.onclick=async()=>{const id=selected.productId;dialog.close();await saveToWishlist(id)};
+ const reviews=document.createElement('button');reviews.type='button';reviews.className='outline-button';
+ reviews.textContent='READ / WRITE REVIEWS';reviews.onclick=()=>{dialog.close();showReviews(selected.productId)};
+ const similar=document.createElement('button');similar.type='button';similar.className='outline-button';
+ similar.textContent='SIMILAR PICKS ↗';similar.onclick=()=>{dialog.close();showRecommendations(selected.productId)};
+ info.append(heading,desc,optionsWrap,stock,price,details,add,save,reviews,similar,close);panel.append(picture,info);root.append(panel);
  renderSelection();dialog.showModal();
 }
 function drawProducts(){
@@ -176,7 +182,7 @@ function drawProducts(){
   if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" decoding="async" src="'+escape(p.image)+'" alt="'+escape(p.variantGroup||p.name)+' — illustrative photography">';
   const action=stock<1?'SOLD OUT':sized?'CHOOSE SIZE ↗':'ADD TO BAG +';
   return '<article class="product-card"><div class="product-visual" style="--tone:'+(tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'● IN STOCK':'SOLD OUT')+'</span>'+image+
-   '<button type="button" class="quick-view" data-quick="'+safeId+'" aria-label="Quick view '+escape(p.variantGroup||p.name)+'">QUICK VIEW ↗</button></div><div class="product-info"><div class="brand-tag">'+escape(p.brand||'NOTHING SELECT')+'</div><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.variantGroup||p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+action+'</button></div></div></article>';
+   '<button type="button" class="quick-view" data-quick="'+safeId+'" aria-label="Quick view '+escape(p.variantGroup||p.name)+'">QUICK VIEW ↗</button></div><div class="product-info"><button type="button" class="save-button" data-save="'+safeId+'" aria-label="Save to wishlist">♡ SAVE</button><div class="brand-tag">'+escape(p.brand||'NOTHING SELECT')+'</div><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.variantGroup||p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+action+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{
@@ -184,6 +190,7 @@ function drawProducts(){
   else addItem(b.dataset.add);
  });
  document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>showQuickView(b.dataset.quick));
+ document.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>saveToWishlist(b.dataset.save));
 }
 async function applyFilters(){
  const sequence=++searchRequestSeq;
@@ -324,6 +331,7 @@ async function loadSession(){
  syncAccountButtons();
  $('adminRetailersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  $('adminOrdersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
+ $('adminRequestsBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
  await loadRetailerStatus();await applyFilters();await loadServerCart();
 }
 function showDialog(title,fields,button='CONTINUE'){
@@ -331,18 +339,35 @@ function showDialog(title,fields,button='CONTINUE'){
   const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
   const h=document.createElement('h2');h.textContent=title;root.appendChild(h);
   const form=document.createElement('form'),inputs={};
+  let consentedCoordinates=null;
   for(const f of fields){
    const label=document.createElement('label');label.textContent=f.label;const input=document.createElement('input');
    input.name=f.name;input.required=f.required!==false;input.type=f.type||'text';input.placeholder=f.placeholder||'';input.autocomplete=f.autocomplete||'off';
    if(f.minLength)input.minLength=f.minLength;
    label.append(input);form.append(label);inputs[f.name]=input;
   }
+  if(title==='DELIVERY ADDRESS'){
+   const locate=document.createElement('button');locate.type='button';locate.className='outline-button';
+   locate.textContent='⌖ USE CURRENT LOCATION (OPTIONAL)';
+   const detail=document.createElement('p');detail.className='size-guide';
+   detail.textContent='Your browser will request permission. Enter the full delivery address even when coordinates are captured.';
+   locate.onclick=()=>{
+    if(!navigator.geolocation){detail.textContent='Location unavailable in this browser.';return}
+    locate.disabled=true;
+    navigator.geolocation.getCurrentPosition(
+     pos=>{consentedCoordinates={latitude:pos.coords.latitude,longitude:pos.coords.longitude};
+      detail.textContent='Location pin captured. Please complete the address fields.';locate.disabled=false},
+     ()=>{detail.textContent='Location permission denied or unavailable. Enter the address manually.';locate.disabled=false},
+     {enableHighAccuracy:false,timeout:12000,maximumAge:0});
+   };
+   form.append(locate,detail);
+  }
   const actions=document.createElement('div');actions.className='actions';
   const cancel=document.createElement('button');cancel.type='button';cancel.textContent='CANCEL';
   const submit=document.createElement('button');submit.type='submit';submit.textContent=button;actions.append(cancel,submit);form.append(actions);root.append(form);
   let finished=false;const end=value=>{if(finished)return;finished=true;dialog.close();resolve(value)};
   cancel.onclick=()=>end(null);dialog.oncancel=e=>{e.preventDefault();end(null)};
-  form.onsubmit=e=>{e.preventDefault();const data={};for(const [name,input] of Object.entries(inputs))data[name]=input.value.trim();end(data)};
+  form.onsubmit=e=>{e.preventDefault();const data={};for(const [name,input] of Object.entries(inputs))data[name]=input.value.trim();if(consentedCoordinates)Object.assign(data,consentedCoordinates);end(data)};
   dialog.showModal();Object.values(inputs)[0]?.focus();
  });
 }
@@ -378,6 +403,7 @@ async function login(mode=null){
   syncAccountButtons();
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   $('adminOrdersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
+  $('adminRequestsBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
@@ -394,6 +420,7 @@ async function logout(){
  user=null;cart={};retailerStatus='NOT_APPLIED';retailerDiscount=0;
  $('adminRetailersBtn').hidden=true;
  $('adminOrdersBtn').hidden=true;
+ $('adminRequestsBtn').hidden=true;
  // Do not transfer one customer's bag to the next shopper on the same device.
  localStorage.removeItem('nothing-guest-cart');
  syncAccountButtons();await applyFilters();updateCart();
@@ -584,6 +611,9 @@ async function showOrders(){
   const orders=Array.isArray(data)?data:[];
   const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
   const title=document.createElement('h2');title.textContent='YOUR ORDERS';root.append(title);
+  const requestsButton=document.createElement('button');requestsButton.type='button';
+  requestsButton.className='outline-button';requestsButton.textContent='MY RETURN / DELIVERY REQUESTS ↗';
+  requestsButton.onclick=()=>{d.close();showMyRequests()};root.append(requestsButton);
   if(!orders.length){const p=document.createElement('p');p.textContent='No orders yet. Your next favorite find awaits!';root.append(p)}
   for(const o of orders){
    const row=document.createElement('div');row.className='tracking-order-card';
@@ -599,7 +629,12 @@ async function showOrders(){
    }
    const track=document.createElement('button');track.type='button';track.className='track-order-button';
    track.textContent='TRACK YOUR ORDER ↗';track.onclick=()=>{d.close();showTracking(o.orderId)};
-   row.append(track);root.append(row);
+   row.append(track);
+   const reschedule=document.createElement('button');reschedule.type='button';reschedule.className='track-order-button';
+   reschedule.textContent='REQUEST DELIVERY DATE ↗';reschedule.onclick=()=>{d.close();newAfterSaleRequest(o.orderId,'RESCHEDULE')};
+   const returned=document.createElement('button');returned.type='button';returned.className='track-order-button';
+   returned.textContent='REQUEST RETURN ↗';returned.onclick=()=>{d.close();newAfterSaleRequest(o.orderId,'RETURN')};
+   row.append(reschedule,returned);root.append(row);
   }
   const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>d.close();
   root.append(close);d.showModal();
@@ -823,9 +858,10 @@ function bind(){
  $('signInBtn').onclick=()=>login('LOGIN');
  $('registerBtn').onclick=()=>login('SIGNUP');
  $('logoutBtn').onclick=logout;
- $('ordersBtn').onclick=showOrders;$('checkoutBtn').onclick=checkout;
+ $('ordersBtn').onclick=showOrders;$('wishlistBtn').onclick=showWishlist;$('checkoutBtn').onclick=checkout;
  $('retailerBtn').onclick=retailerAction;$('retailerCta').onclick=retailerAction;$('adminRetailersBtn').onclick=reviewRetailers;
  $('adminOrdersBtn').onclick=showFulfillmentPanel;
+ $('adminRequestsBtn').onclick=reviewAfterSaleRequests;
  $('searchGo').onclick=()=>{searchText=$('search').value.trim();applyFilters();$('catalog').scrollIntoView({behavior:'smooth'})};
  $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchDebounce);$('searchGo').click()}});
  $('search').addEventListener('input',()=>{clearTimeout(searchDebounce);searchDebounce=setTimeout(()=>{searchText=$('search').value.trim();applyFilters()},350)});
