@@ -67,6 +67,22 @@ public class RetailCatalogSeed {
   add("Beauty","Lip Balm Variety Pack",299,"Set of three moisturizing lip balms with subtle everyday flavours","Pune",117);
   add("Beauty","Hand Cream Shea Butter 75ml",279,"Nourishing hand cream for dry hands with a light non-greasy texture","Delhi",100);
   add("Beauty","Daily Body Lotion 400ml",449,"Fast-absorbing body lotion for everyday use with lasting hydration","Mumbai",85);
+  add("Fashion","Classic Cotton T-Shirt - Size S",499,"Regular-fit cotton t-shirt available in this size","Bengaluru",24);
+  add("Fashion","Classic Cotton T-Shirt - Size M",499,"Regular-fit cotton t-shirt available in this size","Bengaluru",24);
+  add("Fashion","Classic Cotton T-Shirt - Size L",499,"Regular-fit cotton t-shirt available in this size","Bengaluru",24);
+  add("Fashion","Classic Cotton T-Shirt - Size XL",499,"Regular-fit cotton t-shirt available in this size","Bengaluru",24);
+  add("Fashion","Unisex Hoodie - Size S",1799,"Comfortable relaxed-fit fleece hoodie in the selected size","Delhi",20);
+  add("Fashion","Unisex Hoodie - Size M",1799,"Comfortable relaxed-fit fleece hoodie in the selected size","Delhi",20);
+  add("Fashion","Unisex Hoodie - Size L",1799,"Comfortable relaxed-fit fleece hoodie in the selected size","Delhi",20);
+  add("Fashion","Unisex Hoodie - Size XL",1799,"Comfortable relaxed-fit fleece hoodie in the selected size","Delhi",20);
+  add("Fashion","Classic Denim Jacket - Size S",2599,"Classic denim jacket with a dedicated stock count for this size","Delhi",13);
+  add("Fashion","Classic Denim Jacket - Size M",2599,"Classic denim jacket with a dedicated stock count for this size","Delhi",13);
+  add("Fashion","Classic Denim Jacket - Size L",2599,"Classic denim jacket with a dedicated stock count for this size","Delhi",13);
+  add("Fashion","Classic Denim Jacket - Size XL",2599,"Classic denim jacket with a dedicated stock count for this size","Delhi",13);
+  add("Fashion","Urban Running Shoes - Size 7",2199,"Breathable running shoes with size-specific inventory","Hyderabad",18);
+  add("Fashion","Urban Running Shoes - Size 8",2199,"Breathable running shoes with size-specific inventory","Hyderabad",18);
+  add("Fashion","Urban Running Shoes - Size 9",2199,"Breathable running shoes with size-specific inventory","Hyderabad",18);
+  add("Fashion","Urban Running Shoes - Size 10",2199,"Breathable running shoes with size-specific inventory","Hyderabad",18);
  }
  private void add(String categoryName,String name,double price,String description,String city,int stock){
   java.util.Optional<Product> existing=products.findAll().stream()
@@ -87,6 +103,8 @@ public class RetailCatalogSeed {
   Product stored=products.save(p);events.record("PRODUCT_CHANGED",stored.getProductId(),null);
  }
  private String imageFor(String name){
+   // Fashion size SKUs share their real item's photo; they do not imply different model photography.
+   name=name.replaceFirst(" - Size (XS|S|M|L|XL|XXL|[6-9]|10|11|12)$","");
    return switch(name){
      case "Bluetooth Wireless Earbuds" -> "https://images.unsplash.com/photo-1754142654807-1dfcdc3f7f22?auto=format&fit=crop&w=800&q=82";
      case "Portable Bluetooth Speaker" -> "https://images.unsplash.com/photo-1732229033839-c76b4071c449?auto=format&fit=crop&w=800&q=82";

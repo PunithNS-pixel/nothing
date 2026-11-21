@@ -98,6 +98,30 @@ async function addItem(id){
 }
 function openCart(){$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
 function closeCart(){$('overlay').hidden=true;$('cartDrawer').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true')}
+function variantOf(p){
+ const m=/^(.*?) - Size (XS|S|M|L|XL|XXL|[6-9]|10|11|12)$/.exec(p.name);
+ return m?{base:m[1],size:m[2]}:null;
+}
+// Size selection maps to real product IDs. Each size has independently enforced stock.
+function presentProducts(products){
+ const groups=new Map();
+ const nonVariants=[];
+ for(const p of products){
+  const v=variantOf(p);
+  if(!v){nonVariants.push(p);continue}
+  if(!groups.has(v.base))groups.set(v.base,[]);
+  groups.get(v.base).push({...p,sizeLabel:v.size});
+ }
+ const variants=[...groups.entries()].map(([base,items])=>{
+  const ordered=items.sort((a,b)=>{
+   const sizes=['XS','S','M','L','XL','XXL','6','7','8','9','10','11','12'];
+   return sizes.indexOf(a.sizeLabel)-sizes.indexOf(b.sizeLabel);
+  });
+  const selected=ordered.find(x=>x.sizeLabel==='M'&&x.stock>0)||ordered.find(x=>x.stock>0)||ordered[0];
+  return {...selected,name:base,stock:ordered.reduce((n,x)=>n+x.stock,0),variants:ordered};
+ });
+ return [...nonVariants.filter(p=>!groups.has(p.name)),...variants];
+}
 function drawProducts(){
  $('resultCount').textContent=visible.length+' PRODUCT'+(visible.length===1?'':'S')+' FOUND';
  $('emptyState').hidden=visible.length>0;
@@ -107,10 +131,14 @@ function drawProducts(){
   if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">';
   const off=p.originalPrice>p.price?Math.round((p.originalPrice-p.price)*100/p.originalPrice):0;
   const deal=off>0?'<span class="discount-label">'+off+'% OFF</span>':'';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
+  const choices=p.variants?'<label class="card-size-picker">SIZE <select aria-label="Choose size for '+escape(p.name)+'" data-variant-select>'+p.variants.map(v=>'<option value="'+v.productId+'" '+(v.stock<1?'disabled':'')+' '+(v.productId===p.productId?'selected':'')+'>'+escape(v.sizeLabel)+(v.stock<1?' · SOLD OUT':'')+'</option>').join('')+'</select></label>':'';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p>'+choices+'<div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
- document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add));
+ document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{
+  const chooser=b.closest('.product-card').querySelector('[data-variant-select]');
+  addItem(chooser?chooser.value:b.dataset.add);
+ });
 }
 function renderCategoryShowcase(){
  $('categoryShowcase').innerHTML=productCategories.map(c=>{
@@ -120,7 +148,7 @@ function renderCategoryShowcase(){
  $('categoryShowcase').querySelectorAll('[data-category-tile]').forEach(b=>b.onclick=()=>setCategory(b.dataset.categoryTile));
 }
 function renderDeals(){
- const active=catalog.filter(p=>p.stock>0);
+ const active=presentProducts(catalog).filter(p=>p.stock>0);
  const discounted=active.filter(p=>Number(p.originalPrice)>Number(p.price)).sort((a,b)=>
   ((b.originalPrice-b.price)/b.originalPrice)-((a.originalPrice-a.price)/a.originalPrice));
  const deals=discounted.length?discounted.slice(0,6):active.slice().sort((a,b)=>b.stock-a.stock).slice(0,6);
@@ -161,7 +189,7 @@ async function applyFilters(){
  if(sort==='price-asc')products.sort((a,b)=>a.price-b.price);
  if(sort==='price-desc')products.sort((a,b)=>b.price-a.price);
  if(sort==='name')products.sort((a,b)=>a.name.localeCompare(b.name));
- visible=products;drawProducts();
+ visible=presentProducts(products);drawProducts();
 }
 function setCategory(name){
  category=name;
@@ -267,6 +295,28 @@ function selectAccountMode(){
   dialog.showModal();
  });
 }
+async function getEmailVerificationProof(email){
+ const config=await request('/api/auth/email/config');
+ if(!config.required)return null;
+ if(!config.available)throw new Error('Email verification is required but email delivery is not configured. Contact the store administrator.');
+ await request('/api/auth/email/start',{method:'POST',body:JSON.stringify({email})});
+ notify('A six-digit verification code was sent to '+email+'.');
+ const answer=await showDialog('CHECK YOUR EMAIL',[{name:'code',label:'SIX-DIGIT CODE (EXPIRES IN 10 MINUTES)',placeholder:'123456',inputMode:'numeric',pattern:'[0-9]{6}',maxLength:6}],'VERIFY EMAIL');
+ if(!answer)throw new Error('Email verification cancelled.');
+ const proof=await request('/api/auth/email/confirm',{method:'POST',body:JSON.stringify({email,code:answer.code})});
+ if(!proof.token)throw new Error('Email verification failed.');
+ return proof.token;
+}
+async function ensureVerifiedEmail(){
+ const state=await request('/api/auth/email/status');
+ if(!state.required||state.verified)return true;
+ const proof=await getEmailVerificationProof(state.email);
+ if(!proof)return false;
+ const updated=await request('/api/auth/email/activate',{method:'POST',body:JSON.stringify({token:proof})});
+ if(!updated.verified)throw new Error('Email ownership could not be confirmed.');
+ notify('Email address verified! You can now place orders.');
+ return true;
+}
 async function login(mode=null){
  const choice=mode||await selectAccountMode();
  if(!choice)return false;
@@ -277,7 +327,11 @@ async function login(mode=null){
  const data=await showDialog(signup?'CREATE YOUR ACCOUNT':'WELCOME BACK',fields,signup?'SIGN UP':'SIGN IN');
  if(!data)return false;
  try{
-  if(signup)await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
+  if(signup){
+   const token=await getEmailVerificationProof(data.email);
+   if(token)data.emailVerificationToken=token;
+   await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
+  }
   await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
   const session=await verifySession();
   if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
@@ -502,11 +556,30 @@ function confirmAction(title,message,label='CONFIRM'){
 async function showAccountOverview(){
  if(!user){await login('LOGIN');return}
  try{
-  const [session,addresses]=await Promise.all([request('/api/auth/user'),request('/api/users/addresses')]);
+  const [session,addresses,emailState,config]=await Promise.all([
+   request('/api/auth/user'),request('/api/users/addresses'),request('/api/auth/email/status'),request('/api/auth/email/config')
+  ]);
   const d=$('modal'),root=$('modalContent');root.replaceChildren();
   const title=document.createElement('h2');title.textContent='MY ACCOUNT';root.append(title);
   const intro=document.createElement('p');intro.textContent=session.username+' · '+session.email;root.append(intro);
   const section=document.createElement('div');section.className='account-overview';
+  const verification=document.createElement('p');
+  verification.textContent=emailState.verified?'✓ Email inbox verified':'Email inbox not yet verified';
+  verification.className=emailState.verified?'verified-email-label':'unverified-email-label';
+  section.append(verification);
+  if(!emailState.verified&&config.available){
+   const verify=document.createElement('button');verify.className='outline-button';
+   verify.textContent='VERIFY MY EMAIL';
+   verify.onclick=async()=>{d.close();try{
+    const proof=await request('/api/auth/email/start',{method:'POST',body:JSON.stringify({email:session.email})}).then(async()=>{
+     const answer=await showDialog('VERIFY '+session.email,[{name:'code',label:'EMAIL CODE',pattern:'[0-9]{6}',maxLength:6}],'VERIFY');
+     if(!answer)return null;
+     return request('/api/auth/email/confirm',{method:'POST',body:JSON.stringify({email:session.email,code:answer.code})});
+    });
+    if(proof?.token)await request('/api/auth/email/activate',{method:'POST',body:JSON.stringify({token:proof.token})});
+   }catch(e){notify('Email verification: '+e.message,true)}
+   await showAccountOverview()};section.append(verify);
+  }
   const saved=document.createElement('div');saved.innerHTML='<strong>DELIVERY ADDRESSES</strong><small>'+addresses.length+' saved</small>';section.append(saved);
   addresses.forEach(a=>{
    const b=document.createElement('button');b.className='address-choice';b.innerHTML='<strong>'+escape(a.addressLabel||'ADDRESS')+'</strong><span>'+escape(addressSummary(a))+'</span><small>EDIT DETAILS ↗</small>';
@@ -531,6 +604,8 @@ async function checkout(){
   if(!await login())return;
  }
  try{
+  checkoutStage='verifying email ownership';
+  await ensureVerifiedEmail();
   checkoutStage='saving shopping bag';
   await persistCart();
   checkoutStage='selecting verified delivery details';
