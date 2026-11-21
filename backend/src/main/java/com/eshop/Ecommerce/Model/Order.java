@@ -37,6 +37,11 @@ public class Order {
     private Double totalAmount;
     private String orderStatus;
 
+    // Optional, manually entered fulfillment data; not an active courier integration.
+    @Column(length=80) private String shippingCarrier;
+    @Column(length=90) private String shippingTrackingNumber;
+    private LocalDate estimatedDeliveryDate;
+
     // Reference to Address
     @ManyToOne
     @JoinColumn(name = "address_id")
