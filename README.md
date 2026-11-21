@@ -273,3 +273,7 @@ The Aiven live connectivity verifier, bounded concurrent HTTP benchmark, and dis
 ## Three Spring Boot replicas and Nginx round robin
 
 [See the new HA deployment and live failover guide](docs/ROUND_ROBIN_DEPLOYMENT.md) for round robin routing, HTTPS, cloud prerequisites and limitations. The original single-instance Docker profiles remain available.
+
+## Order-confirmation emails (COD and verified Stripe)
+
+The server now writes a **durable order email job** with each successful checkout and sends a customer-facing HTML + plaintext receipt via SMTP after commit, with RabbitMQ notifications, multi-replica-safe claims and persistent retries. Actual mail is disabled until real SMTP credentials are set privately. See [Order confirmation emails: configuration, testing and operations](docs/ORDER_CONFIRMATION_EMAIL.md).
