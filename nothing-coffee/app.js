@@ -495,25 +495,53 @@ async function login(mode=null){
  const choice=mode||await selectAccountMode();
  if(!choice)return false;
  const signup=choice==='SIGNUP';
- const fields=[{name:'username',label:'USERNAME',autocomplete:'username',minLength:3}];
- if(signup)fields.push({name:'email',label:'EMAIL ADDRESS',type:'email',autocomplete:'email'});
- fields.push({name:'password',label:'PASSWORD',type:'password',autocomplete:signup?'new-password':'current-password',minLength:6});
- const data=await showDialog(signup?'CREATE YOUR ACCOUNT':'WELCOME BACK',fields,signup?'SIGN UP':'SIGN IN');
+ if(signup){
+  try{
+   const config=await request('/api/auth/email/config');
+   if(!config.required||!config.available){
+    await informationModal('REGISTRATION NEEDS EMAIL OTP',
+     'Signup requires proof that the inbox belongs to the customer. The administrator must set EMAIL_VERIFICATION_REQUIRED=true and configure SMTP_HOST, SMTP_FROM and SMTP credentials.');
+    return false;
+   }
+  }catch(e){notify('Registration is not available: '+e.message,true);return false}
+ }
+ const fields=[{name:'username',label:signup?'USERNAME':'USERNAME OR EMAIL',autocomplete:'username',minLength:3}];
+ if(signup)fields.push({name:'email',label:'REAL EMAIL ADDRESS',type:'email',autocomplete:'email'});
+ fields.push({name:'password',label:signup?'PASSWORD · 10+ CHARACTERS, UPPER/LOWERCASE + NUMBER':'PASSWORD',
+  type:'password',autocomplete:signup?'new-password':'current-password',minLength:signup?10:6,
+  maxLength:signup?40:undefined,pattern:signup?'(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{10,40}':undefined});
+ const data=await showDialog(signup?'CREATE YOUR ACCOUNT':'WELCOME BACK',fields,signup?'VERIFY & CREATE ACCOUNT':'SIGN IN');
  if(!data)return false;
+ let cookieIssued=false;
  try{
   if(signup){
    const token=await getEmailVerificationProof(data.email);
-   if(token)data.emailVerificationToken=token;
+   if(!token)throw new Error('Verify the six-digit code delivered to the real email inbox.');
+   data.emailVerificationToken=token;
    await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
   }
-  await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
+  await request('/api/auth/signin',{method:'POST',
+   body:JSON.stringify({username:data.username,password:data.password})});
+  cookieIssued=true;
   const session=await verifySession();
-  if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
+  if(!session)throw new Error('Sign-in cookie was not accepted. Open the site on localhost:8000.');
+  // Accounts registered before OTP enforcement must prove inbox ownership too.
+  await ensureVerifiedEmail();
   syncAccountButtons();
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
-  await loadRetailerStatus();await applyFilters();await loadServerCart();await loadWishlist();notify('Welcome, '+user+'! Your cart is synced.');
+  await loadRetailerStatus();await applyFilters();await loadServerCart();await loadWishlist();
+  notify('Welcome, '+user+'! Your account and cart are ready.');
   return true;
- }catch(e){notify('Account error: '+e.message,true);return false}
+ }catch(e){
+  if(cookieIssued){
+   try{await request('/api/auth/signout',{method:'POST'})}catch{}
+   user=null;cart={};wishlistIds=new Set();syncAccountButtons();updateCart();
+  }
+  await informationModal(signup?'ACCOUNT NOT CREATED':'SIGN-IN NOT COMPLETED',
+   (signup?'Signup needs a real verified inbox and a strong password. ':
+      'Email/username and password must match an existing account. ')+e.message);
+  return false;
+ }
 }
 function closeAccountMenu(){
  $('accountMenu').hidden=true;
@@ -1031,5 +1059,8 @@ function bind(){
  $('clearFilters').onclick=()=>{searchText='';$('search').value='';$('cityFilter').value='';$('priceFilter').value='';setCategory('All')};
  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeCart();closeAccountMenu()}});
 }
-bind();syncAccountButtons();loadCatalog().then(loadSession).then(resumeStripeCheckout);
+bind();syncAccountButtons();loadCatalog().then(loadSession).then(resumeStripeCheckout).then(()=>{
+ const id=new URL(location.href).searchParams.get('product');
+ if(id&&productById(id))openProductDetail(id);
+});
 })();
