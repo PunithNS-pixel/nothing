@@ -497,7 +497,7 @@ function addressSummary(a){
  return [a.addressLabel||'DELIVERY ADDRESS',a.recipientName||'Name needed',a.phoneNumber||'Phone needed',a.buildingName,a.street,a.landmark,a.city,a.state,a.pincode,a.country].filter(Boolean).join(' · ');
 }
 function completeAddress(a){
- return !!(a&&a.recipientName&&a.recipientName.trim().length>=2&&/^\\+?[0-9]{10,15}$/.test(a.phoneNumber||'')&&/^[0-9]{6}$/.test(a.pincode||''));
+ return !!(a&&a.recipientName&&a.recipientName.trim().length>=2&&/^\+?[0-9]{10,15}$/.test(a.phoneNumber||'')&&/^[0-9]{6}$/.test(a.pincode||''));
 }
 async function editAddress(a=null){
  const fields=addressFields(a||{});
