@@ -35,3 +35,31 @@
 .loading-card code{display:inline-block;background:#e7eee2;padding:2px 6px;overflow-wrap:anywhere}
 .loading-card .outline-button{margin-top:12px}
 @media(max-width:670px){.toast{bottom:16px;min-width:calc(100vw - 28px);padding:12px 15px;flex-wrap:wrap;font-size:11px}.toast-action{padding:9px 11px}.quick-photo{min-height:160px}}
+
+/* Fulfillment: staff-confirmed milestones, not simulated live courier GPS */
+.tracking-status{background:#d8f69a;border-left:5px solid #386628;padding:16px 20px;margin:16px 0 14px;display:flex;flex-direction:column;gap:4px}
+.tracking-status strong{font:clamp(21px,3vw,33px)/1.15 'Space Grotesk',sans-serif;text-transform:uppercase;color:#173514}
+.tracking-disclaimer{font-size:11px!important;line-height:1.6!important;color:#5d6658!important}
+.tracking-courier{padding:10px;background:#eef3e7;overflow-wrap:anywhere;font-size:12px!important}
+.tracking-timeline{list-style:none;padding:0 0 0 11px;margin:20px 0;counter-reset:none}
+.tracking-milestone{display:flex;gap:19px;min-height:57px;position:relative;color:#80887e}
+.tracking-milestone:not(:last-child):before{content:"";position:absolute;left:10px;top:22px;height:calc(100% - 17px);border-left:2px dashed #bcc4ba}
+.tracking-milestone.completed{color:#192b16}
+.tracking-milestone.completed:not(:last-child):before{border-left:2px solid #529a2b}
+.tracking-dot{position:relative;z-index:1;flex-shrink:0;width:23px;height:23px;line-height:21px;border:2px solid #c2c9bf;border-radius:50%;text-align:center;background:#fff;color:#245e1d;font-weight:900}
+.tracking-milestone.completed .tracking-dot{border-color:#4d8a31;background:#d8f5c7}
+.tracking-milestone.current .tracking-dot{background:#cafa36}
+.tracking-milestone strong{display:block;font-size:12px;letter-spacing:.06em}
+.tracking-milestone small{display:block;font-size:10px;padding-top:3px;line-height:1.4}
+.tracking-history-heading{margin:20px 0 8px;font-size:12px;letter-spacing:.15em}
+.tracking-history-item{border-bottom:1px solid #e0e6dd;padding:9px 0;font-size:10px!important;overflow-wrap:anywhere}
+.tracking-order-card{border:1px solid #dde3d8;padding:18px;margin:12px 0}
+.tracking-order-card>strong{font:16px 'Space Grotesk',sans-serif}
+.tracking-order-card>p{font-size:11px}
+.order-detail-line{padding:5px 0;font-size:11px;color:#52604c}
+#modalContent .track-order-button{background:#cafa36;color:#172013;border:0;padding:12px 16px;margin:12px 0 0;font-size:10px;font-weight:900;letter-spacing:.08em}
+#modalContent .track-order-button:hover{background:#e1ff88}
+.tracking-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.tracking-actions .primary-choice{flex:1;min-width:135px}
+.fulfillment-row{display:block;width:100%;margin:9px 0}
+@media(max-width:640px){.tracking-order-card{padding:13px}.tracking-actions{flex-direction:column}.tracking-status{padding:12px}}
