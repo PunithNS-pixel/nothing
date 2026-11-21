@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(n)||0);
 // All authenticated API traffic goes through this storefront's Nginx /api proxy.
 const API='';
-let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0,searchRequestSeq=0,searchDebounce;
+let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0,searchRequestSeq=0,searchDebounce,wishlistIds=new Set();
 const productById=id=>catalog.find(p=>String(p.productId)===String(id));
 const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -96,6 +96,56 @@ async function addItem(id){
   if(p)showCartNudge(p);
  }
 }
+async function loadWishlist(){
+ wishlistIds=new Set();
+ if(!user){drawProducts();return}
+ try{const list=await request('/api/wishlist');wishlistIds=new Set(list.map(x=>String(x.productId)))}
+ catch(e){console.warn('Wishlist unavailable:',e.message)}
+ drawProducts();
+}
+async function toggleWishlist(id){
+ if(!user && !await login('LOGIN'))return;
+ const key=String(id);
+ try{
+  const saved=wishlistIds.has(key);
+  await request('/api/wishlist/'+encodeURIComponent(key),{method:saved?'DELETE':'POST'});
+  await loadWishlist();
+  notify(saved?'Removed from saved items.':'Saved to your wishlist.');
+ }catch(e){notify('Wishlist update failed: '+e.message,true)}
+}
+async function showWishlist(){
+ if(!user && !await login('LOGIN'))return;
+ try{
+  const items=await request('/api/wishlist');
+  const d=$('modal'),root=$('modalContent');root.replaceChildren();
+  const h=document.createElement('h2');h.textContent='SAVED ITEMS';root.append(h);
+  const intro=document.createElement('p');
+  intro.textContent=items.length?items.length+' saved item'+(items.length===1?'':'s'):'Your wishlist is empty. Tap ♡ on any product to save it.';
+  root.append(intro);
+  for(const item of items){
+   const row=document.createElement('div');row.className='wish-row';
+   const body=document.createElement('div');body.className='wish-row-info';
+   const title=document.createElement('strong');title.textContent=item.name;
+   const subtitle=document.createElement('small');subtitle.textContent=item.category+' · '+money(item.price);
+   body.append(title,subtitle);
+   const controls=document.createElement('div');controls.className='wish-actions';
+   const add=document.createElement('button');add.textContent=item.stock>0?'ADD TO CART':'SOLD OUT';
+   add.disabled=!(item.stock>0);add.onclick=()=>{d.close();addItem(item.productId)};
+   const remove=document.createElement('button');remove.textContent='REMOVE';
+   remove.onclick=async()=>{
+    try{
+     await request('/api/wishlist/'+encodeURIComponent(item.productId),{method:'DELETE'});
+     d.close();await loadWishlist();await showWishlist();
+    }catch(e){notify('Could not remove item: '+e.message,true)}
+   };
+   controls.append(add,remove);row.append(body,controls);root.append(row);
+  }
+  const close=document.createElement('button');close.className='outline-button';
+  close.textContent='CLOSE';close.onclick=()=>d.close();root.append(close);
+  d.showModal();
+ }catch(e){notify('Could not load wishlist: '+e.message,true)}
+}
+
 function openCart(){$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
 function closeCart(){$('overlay').hidden=true;$('cartDrawer').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true')}
 function variantOf(p){
@@ -132,12 +182,24 @@ function drawProducts(){
   const off=p.originalPrice>p.price?Math.round((p.originalPrice-p.price)*100/p.originalPrice):0;
   const deal=off>0?'<span class="discount-label">'+off+'% OFF</span>':'';
   const choices=p.variants?'<label class="card-size-picker">SIZE <select aria-label="Choose size for '+escape(p.name)+'" data-variant-select>'+p.variants.map(v=>'<option value="'+v.productId+'" '+(v.stock<1?'disabled':'')+' '+(v.productId===p.productId?'selected':'')+'>'+escape(v.sizeLabel)+(v.stock<1?' · SOLD OUT':'')+'</option>').join('')+'</select></label>':'';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+image+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p>'+choices+'<div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+image+'<button type="button" class="wishlist-toggle" data-wish="'+safeId+'" aria-pressed="'+wishlistIds.has(String(safeId))+'" aria-label="Save to wishlist">'+(wishlistIds.has(String(safeId))?'♥':'♡')+'</button>'+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p>'+choices+'<div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{
   const chooser=b.closest('.product-card').querySelector('[data-variant-select]');
   addItem(chooser?chooser.value:b.dataset.add);
+ });
+ document.querySelectorAll('[data-wish]').forEach(button=>button.onclick=()=>{
+  const chooser=button.closest('.product-card').querySelector('[data-variant-select]');
+  toggleWishlist(chooser?chooser.value:button.dataset.wish);
+ });
+ document.querySelectorAll('[data-variant-select]').forEach(select=>select.onchange=()=>{
+  const button=select.closest('.product-card').querySelector('[data-wish]');
+  if(button){
+   const saved=wishlistIds.has(select.value);
+   button.setAttribute('aria-pressed',String(saved));
+   button.textContent=saved?'♥':'♡';
+  }
  });
 }
 function renderCategoryShowcase(){
@@ -259,7 +321,7 @@ async function loadSession(){
  const session=await verifySession();
  syncAccountButtons();
  $('adminRetailersBtn').hidden=!(session?.roles||[]).includes('ROLE_ADMIN');
- await loadRetailerStatus();await applyFilters();await loadServerCart();
+ await loadRetailerStatus();await applyFilters();await loadServerCart();await loadWishlist();
 }
 function showDialog(title,fields,button='CONTINUE'){
  return new Promise(resolve=>{
@@ -342,7 +404,7 @@ async function login(mode=null){
   if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
   syncAccountButtons();
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
-  await loadRetailerStatus();await applyFilters();await loadServerCart();notify('Welcome, '+user+'! Your cart is synced.');
+  await loadRetailerStatus();await applyFilters();await loadServerCart();await loadWishlist();notify('Welcome, '+user+'! Your cart is synced.');
   return true;
  }catch(e){notify('Account error: '+e.message,true);return false}
 }
@@ -370,7 +432,7 @@ function syncAccountButtons(){
 }
 async function logout(){
  try{await request('/api/auth/signout',{method:'POST'})}catch(e){console.warn('Sign-out request:',e)}
- user=null;cart={};retailerStatus='NOT_APPLIED';retailerDiscount=0;
+ user=null;cart={};wishlistIds=new Set();retailerStatus='NOT_APPLIED';retailerDiscount=0;
  $('adminRetailersBtn').hidden=true;
  // Do not transfer one customer's bag to the next shopper on the same device.
  localStorage.removeItem('nothing-guest-cart');
@@ -879,6 +941,7 @@ function bind(){
  $('menuProfile').onclick=()=>{closeAccountMenu();showAccountOverview()};
  $('menuAddresses').onclick=()=>{closeAccountMenu();showAccountOverview()};
  $('menuOrders').onclick=()=>{closeAccountMenu();showOrders()};
+ $('menuWishlist').onclick=()=>{closeAccountMenu();showWishlist()};
  $('menuRetailer').onclick=()=>{closeAccountMenu();retailerAction()};
  $('menuLogout').onclick=()=>{closeAccountMenu();logout()};
  document.addEventListener('click',e=>{
