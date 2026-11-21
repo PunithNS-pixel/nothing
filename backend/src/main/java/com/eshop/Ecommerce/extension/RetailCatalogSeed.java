@@ -35,6 +35,38 @@ public class RetailCatalogSeed {
   add("Grocery","Organic Almonds 500g",449,"Crunchy whole almonds packed in a sealed reusable pouch","Delhi",80);
   add("Beauty","Daily Sunscreen SPF 50",399,"Lightweight broad-spectrum sunscreen for everyday protection","Pune",100);
   add("Beauty","Hydrating Face Wash",299,"Gentle facial cleanser with moisturizing ingredients","Bengaluru",110);
+  add("Electronics","Noise Cancelling Headphones",4499,"Over-ear wireless headphones with active noise cancellation and foldable cushions","Bengaluru",28);
+  add("Electronics","10000mAh Power Bank",1299,"Compact portable battery pack with dual USB output and fast charging","Pune",82);
+  add("Electronics","Wireless Keyboard and Mouse Combo",1599,"Quiet rechargeable keyboard and ergonomic mouse for your work desk","Delhi",56);
+  add("Electronics","Laptop Stand Aluminium",899,"Adjustable aluminium laptop stand with ventilated non-slip support","Mumbai",73);
+  add("Electronics","1080p HD Webcam",1799,"Full HD webcam for video meetings and streaming with privacy cover","Hyderabad",37);
+  add("Electronics","USB-C Multiport Hub",1899,"Seven in one USB-C hub with HDMI, USB ports and memory card slots","Bengaluru",48);
+  add("Electronics","Wireless Charging Pad",1199,"Slim Qi-compatible charging pad with anti-slip surface and LED indicator","Delhi",65);
+  add("Electronics","Portable SSD 512GB",3999,"Fast compact external solid state drive for backups and large transfers","Mumbai",24);
+  add("Home & Living","Ceramic Coffee Mug Set",749,"Set of four microwave-safe ceramic mugs with a minimalist finish","Pune",62);
+  add("Home & Living","Nonstick Frying Pan 24cm",1199,"Durable everyday nonstick skillet with heat-resistant ergonomic handle","Bengaluru",39);
+  add("Home & Living","Aroma Diffuser 300ml",1499,"Quiet ultrasonic fragrance diffuser with soft ambient mood lighting","Hyderabad",52);
+  add("Home & Living","Cotton Cushion Cover Pair",599,"Two textured cotton cushion covers with concealed zipper closures","Mumbai",86);
+  add("Home & Living","Stackable Storage Boxes",999,"Three durable reusable organization boxes for shelves and closets","Delhi",60);
+  add("Home & Living","Digital Kitchen Scale",699,"Compact digital food scale with tare function and gram measurements","Pune",77);
+  add("Fashion","Unisex Hoodie",1799,"Soft fleece hooded sweatshirt with relaxed everyday fit and kangaroo pocket","Delhi",43);
+  add("Fashion","Minimalist Leather Wallet",899,"Slim wallet with multiple card slots and a compact profile","Bengaluru",67);
+  add("Fashion","Polarized Sunglasses",1099,"Lightweight UV400 sunglasses with polarized lenses and storage case","Hyderabad",51);
+  add("Fashion","Travel Duffel Bag",1699,"Spacious weekend duffel with detachable strap and inner organizer pocket","Pune",42);
+  add("Fashion","Cotton Crew Socks 5 Pack",449,"Five pairs of breathable cushioned crew socks for daily comfort","Mumbai",115);
+  add("Fashion","Classic Denim Jacket",2599,"Timeless button-up denim jacket with practical front pockets","Delhi",26);
+  add("Grocery","Organic Green Tea 100g",299,"Premium loose-leaf green tea packed to preserve fresh natural aroma","Bengaluru",150);
+  add("Grocery","Cold Pressed Groundnut Oil 1L",349,"Single litre traditionally cold-pressed groundnut cooking oil","Pune",97);
+  add("Grocery","Natural Peanut Butter 340g",329,"Creamy unsweetened roasted peanut butter without added refined sugar","Mumbai",112);
+  add("Grocery","Wholegrain Oats 1kg",219,"One kilogram of fibre-rich wholegrain rolled oats for breakfast","Hyderabad",180);
+  add("Grocery","Arabica Coffee Beans 250g",499,"Freshly roasted whole Arabica coffee beans with smooth chocolate notes","Bengaluru",90);
+  add("Grocery","Dark Chocolate 70 Percent 100g",199,"Intensely flavoured dark chocolate bar with seventy percent cocoa","Delhi",140);
+  add("Beauty","Vitamin C Face Serum 30ml",699,"Lightweight brightening facial serum formulated with vitamin C","Mumbai",95);
+  add("Beauty","Aloe Vera Moisturizer 100ml",399,"Quick-absorbing aloe moisturizer for comfortable everyday hydration","Bengaluru",125);
+  add("Beauty","Gentle Shampoo 300ml",349,"Mild daily-use shampoo for a clean and refreshed scalp","Hyderabad",105);
+  add("Beauty","Lip Balm Variety Pack",299,"Set of three moisturizing lip balms with subtle everyday flavours","Pune",117);
+  add("Beauty","Hand Cream Shea Butter 75ml",279,"Nourishing hand cream for dry hands with a light non-greasy texture","Delhi",100);
+  add("Beauty","Daily Body Lotion 400ml",449,"Fast-absorbing body lotion for everyday use with lasting hydration","Mumbai",85);
  }
  private void add(String categoryName,String name,double price,String description,String city,int stock){
   java.util.Optional<Product> existing=products.findAll().stream()

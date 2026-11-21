@@ -2,7 +2,8 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(n)||0);
-const API=(localStorage.getItem('nothing-api-url')||'http://localhost:8090').replace(/\/$/,'');
+// All authenticated API traffic goes through this storefront's Nginx /api proxy.
+const API='';
 let catalog=[],visible=[],category='All',searchText='',user=null,cart={},cartBusy=false,retailerStatus='NOT_APPLIED',retailerDiscount=0,searchRequestSeq=0,searchDebounce;
 const productById=id=>catalog.find(p=>String(p.productId)===String(id));
 const itemPrice=p=>retailerStatus==='APPROVED'?Math.round((p.price*(100-retailerDiscount)/100)*100)/100:p.price;
@@ -293,6 +294,8 @@ async function showOrders(){
  }catch(e){notify('Order history is temporarily unavailable: '+e.message,true)}
 }
 async function choosePaymentMethod(total){
+ let stripeReady=false;
+ try{const config=await request('/api/checkout/stripe/config');stripeReady=config.enabled===true}catch{}
  return new Promise(resolve=>{
   const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
   const h=document.createElement('h2');h.textContent='HOW WOULD YOU LIKE TO PAY?';
@@ -303,7 +306,12 @@ async function choosePaymentMethod(total){
   const done=v=>{if(finished)return;finished=true;dialog.close();resolve(v)};
   for(const [method,label] of [['COD','CASH ON DELIVERY'],['STRIPE','PAY SECURELY WITH STRIPE']]){
    const b=document.createElement('button');b.type='button';b.className='primary-choice';
-   b.textContent=label;b.onclick=()=>done(method);choices.append(b);
+   b.textContent=label;
+   if(method==='STRIPE'&&!stripeReady){
+    b.disabled=true;b.title='Configure Stripe test key and webhook secret first';
+    b.textContent='STRIPE TEST PAYMENT — CONFIGURATION REQUIRED';
+   }
+   b.onclick=()=>done(method);choices.append(b);
   }
   const cancel=document.createElement('button');cancel.className='outline-button';
   cancel.textContent='CANCEL';cancel.onclick=()=>done(null);root.append(cancel);
@@ -380,10 +388,9 @@ async function checkout(){
   checkoutStage='placing cash-on-delivery order';
   const order=await request('/api/order/users/payments/COD',{method:'POST',body:JSON.stringify({addressId:address.addressId,pgName:'COD',pgPaymentId:null,pgStatus:'PENDING',pgResponseMessage:'Cash on delivery'})});
   cart={};saveGuest();updateCart();closeCart();
-  await loadCatalog();
   notify('Order #'+order.orderId+' placed successfully! Payment on delivery.');
-  // The order already exists. A failed history refresh must never make the
-  // shopper think checkout itself failed or encourage a duplicate purchase.
+  // Refresh is best effort: do not misreport a committed order as failed.
+  try{await loadCatalog()}catch(e){console.warn('Catalog refresh after order:',e)}
   await showOrders();
  }catch(e){notify('Checkout failed while '+checkoutStage+': '+e.message,true);console.error('Checkout stage:',checkoutStage,'Error:',e)}
 }

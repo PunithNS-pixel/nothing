@@ -62,3 +62,11 @@ Terraform requires an authorized Aiven API token and project configuration; `ter
 - PostgreSQL administrative access is privileged database access, not part of the public website.
 - Aiven PostgreSQL `avnadmin` is a service-scoped database account, not a machine root or an Aiven organization admin.
 - Credentials must remain in private `.env` files. Never paste them in issues, chat or commits.
+
+## Expanded retail demo catalog (seed)
+
+The seed now contains **46 named items** across Electronics, Home & Living, Fashion, Grocery and Beauty (14 existing plus 32 additional). They have distinct names, descriptions, prices, city labels and positive stock. The seed is idempotent: existing products, purchases, accounts and inventory are not reset or overwritten. New products are added on backend startup when `SEED_RETAIL_CATALOG=true`. The new items without an assigned photograph use existing category icons in the frontend; add licensed product photos later.
+
+For local Docker use `git pull origin backend` then `docker compose -f backend/compose.yml --env-file backend/.env up -d --build --force-recreate app frontend`. Open `http://localhost:8000/api/store/catalog` to inspect live PostgreSQL product data. The storefront now routes API requests on the same origin (`/api`), rather than contacting port 8090 from the browser, to keep authentication cookies consistent.
+
+COD now keeps the successful order confirmation separate from the subsequent optional catalog/order-history refresh. Stripe is offered only when `/api/checkout/stripe/config` confirms both configured Stripe test credentials, and it still requires an actual signed test webhook before an order is fulfilled. Do not use production Stripe keys before reconciliation/refund handling is complete.
