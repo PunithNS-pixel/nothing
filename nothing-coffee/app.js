@@ -48,8 +48,9 @@ async function request(path,options={}){
  if(!r.ok)throw new Error((data&&typeof data==='object'&&(data.message||data.error))||('HTTP '+r.status));
  return data;
 }
-function saveGuest(){localStorage.setItem('nothing-guest-cart',JSON.stringify(cart))}
-function readGuest(){try{return JSON.parse(localStorage.getItem('nothing-guest-cart')||'{}')||{}}catch{return {}}}
+function saveGuest(){localStorage.removeItem('nothing-guest-cart')}
+function readGuest(){localStorage.removeItem('nothing-guest-cart');return {}}
+async function requireCartAccount(){if(await verifySession())return true;notify('Please sign in to add products to your cart.',true);return Boolean(await login('LOGIN'))}
 function updateCart(){
  const items=Object.entries(cart).filter(([id,q])=>Number(q)>0&&productById(id));
  const count=items.reduce((n,[id,q])=>n+Number(q),0);
@@ -60,13 +61,13 @@ function updateCart(){
  $('cartItems').innerHTML=items.length?items.map(([id,q])=>{
    const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+escape(id)+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
  }).join(''):'<div class="empty-state"><strong>YOUR BAG IS EMPTY.</strong><p>Some good stuff is waiting for you.</p></div>';
- $('cartSyncStatus').textContent=user?'Saved to your PostgreSQL cart':'Guest bag saved on this device';
+ $('cartSyncStatus').textContent=user?'Saved to your PostgreSQL cart':'Sign in to use your bag';
  $('checkoutBtn').disabled=!count||cartBusy;
  bindImageFallbacks($('cartItems'));
  document.querySelectorAll('[data-qty]').forEach(el=>el.onclick=()=>changeQty(el.dataset.qty,Number(el.dataset.delta)));
 }
 async function persistCart(){
- if(!user){saveGuest();updateCart();return}
+ if(!user)throw new Error('Sign in to manage your cart.');
  cartBusy=true;updateCart();
  try{
   const items=Object.entries(cart).filter(([id,q])=>Number(q)>0).map(([id,quantity])=>({productId:Number(id),quantity:Number(quantity)}));
@@ -75,6 +76,7 @@ async function persistCart(){
  finally{cartBusy=false;updateCart()}
 }
 async function changeQty(id,delta){
+ if(!await requireCartAccount())return false;
  const p=productById(id);if(!p||cartBusy)return false;
  const next=Math.max(0,Math.min(99,Number(cart[id]||0)+delta));
  if(next>p.stock){notify('Only '+p.stock+' available right now',true);return false}
@@ -148,11 +150,11 @@ async function showWishlist(){
  }catch(e){notify('Could not load wishlist: '+e.message,true)}
 }
 
-function openCart(){$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
+async function openCart(){if(!await requireCartAccount())return;$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
 function closeCart(){$('overlay').hidden=true;$('cartDrawer').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true')}
 function variantOf(p){
- const m=/^(.*?) - Size (XS|S|M|L|XL|XXL|[6-9]|10|11|12)$/.exec(p.name);
- return m?{base:m[1],size:m[2]}:null;
+ const m=/^(.*?)\s*(?:-\s*Size\s*|\/\s*UK\s*)(XS|S|M|L|XL|XXL|[6-9]|10|11|12)$/i.exec(p.name);
+ return m?{base:m[1].trim(),size:m[2].toUpperCase()}:null;
 }
 // Size selection maps to real product IDs. Each size has independently enforced stock.
 function presentProducts(products){
@@ -185,13 +187,14 @@ function drawProducts(){
   const off=p.originalPrice>p.price?Math.round((p.originalPrice-p.price)*100/p.originalPrice):0;
   const deal=off>0?'<span class="discount-label">'+off+'% OFF</span>':'';
   const choices=p.variants?'<label class="card-size-picker">SIZE <select aria-label="Choose size for '+escape(p.name)+'" data-variant-select>'+p.variants.map(v=>'<option value="'+v.productId+'" '+(v.stock<1?'disabled':'')+' '+(v.productId===p.productId?'selected':'')+'>'+escape(v.sizeLabel)+(v.stock<1?' · SOLD OUT':'')+'</option>').join('')+'</select></label>':'';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+'<button type="button" class="product-image-trigger" data-open-product="'+safeId+'" aria-label="View '+escape(p.name)+' details">'+image+'</button><button type="button" class="wishlist-toggle" data-wish="'+safeId+'" aria-pressed="'+wishlistIds.has(String(safeId))+'" aria-label="Save to wishlist">'+(wishlistIds.has(String(safeId))?'♥':'♡')+'</button>'+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3><button type="button" class="product-title-trigger" data-open-product="'+safeId+'">'+escape(p.name)+'</button></h3><p class="description">'+escape(p.description)+'</p>'+choices+'<div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+'<button type="button" class="product-image-trigger" data-open-product="'+safeId+'" aria-label="View '+escape(p.name)+' details">'+image+'</button><button type="button" class="wishlist-toggle" data-wish="'+safeId+'" aria-pressed="'+wishlistIds.has(String(safeId))+'" aria-label="Save to wishlist">'+(wishlistIds.has(String(safeId))?'♥':'♡')+'</button>'+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3><button type="button" class="product-title-trigger" data-open-product="'+safeId+'">'+escape(p.name)+'</button></h3><p class="description">'+escape(p.description)+'</p>'+choices+'<div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':p.variants?'SELECT SIZE':'ADD +')+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
  $('productGrid').querySelectorAll('[data-open-product]').forEach(b=>b.onclick=()=>openProductDetail(b.dataset.openProduct));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{
   const chooser=b.closest('.product-card').querySelector('[data-variant-select]');
-  addItem(chooser?chooser.value:b.dataset.add);
+  if(chooser){openProductDetail(chooser.value);return}
+  addItem(b.dataset.add);
  });
  document.querySelectorAll('[data-wish]').forEach(button=>button.onclick=()=>{
   const chooser=button.closest('.product-card').querySelector('[data-variant-select]');
@@ -217,10 +220,12 @@ function openProductDetail(id){
   .sort((a,b)=>sizes.indexOf(variantOf(a).size)-sizes.indexOf(variantOf(b).size)):[original];
  const name=variant?variant.base:original.name;
  const dialog=$('productDialog'),root=$('productContent');
- let selected=original,photoIndex=0,zoomed=false,busy=false;
+ let selected=original,photoIndex=0,zoomed=false,busy=false,sizeChosen=!variant;
  const photos=()=>{
-  const additional=Array.isArray(selected.images)?selected.images:[];
-  const urls=[selected.image,...additional.map(x=>typeof x==='string'?x:x?.url)]
+  const parent=variant?catalog.find(p=>p.name===variant.base&&p.category===selected.category):null;
+  const displayed=parent||items.find(p=>p.image)||selected;
+  const additional=Array.isArray(displayed.images)?displayed.images:[];
+  const urls=[displayed.image,...additional.map(x=>typeof x==='string'?x:x?.url)]
    .filter(x=>typeof x==='string'&&/^https:\/\//.test(x));
   const out=[...new Set(urls)].slice(0,8).map((url,i)=>({url,label:i?'Photo '+(i+1):'Product photo',crop:false}));
   if(out.length===1)out.push({url:out[0].url,label:'Close-up',crop:true});
@@ -271,7 +276,7 @@ function openProductDetail(id){
   });
   root.querySelectorAll('[data-detail-size]').forEach(btn=>btn.onclick=()=>{
    const p=productById(btn.dataset.detailSize);
-   if(p&&p.stock>0){selected=p;photoIndex=0;zoomed=false;variantSelections.set(name,String(p.productId));updateLink();paint()}
+   if(p&&p.stock>0){selected=p;sizeChosen=true;photoIndex=0;zoomed=false;variantSelections.set(name,String(p.productId));updateLink();paint()}
   });
   if($('productSizeGuide'))$('productSizeGuide').onclick=()=>{
    const text=/shoe|sneaker/i.test(name)
@@ -280,8 +285,8 @@ function openProductDetail(id){
    informationModal('SIZE GUIDE',text);
   };
   $('detailWishlist').onclick=async()=>{await toggleWishlist(selected.productId);paint()};
-  $('detailAdd').onclick=async()=>{if(busy)return;busy=true;const added=await addItem(selected.productId);busy=false;if(added)paint()};
-  $('detailBuy').onclick=async()=>{if(busy)return;busy=true;const added=await addItem(selected.productId);busy=false;
+  $('detailAdd').onclick=async()=>{if(busy)return;if(!sizeChosen){notify('Choose your size first.',true);return}busy=true;const added=await addItem(selected.productId);busy=false;if(added)paint()};
+  $('detailBuy').onclick=async()=>{if(busy)return;if(!sizeChosen){notify('Choose your size first.',true);return}busy=true;const added=await addItem(selected.productId);busy=false;
    if(added){close();await checkout()}
   };
   bindImageFallbacks(root);
@@ -315,7 +320,7 @@ function renderDeals(){
   return '<article class="deal-card"><div class="deal-image"><button type="button" class="deal-image-trigger" data-open-product="'+p.productId+'" aria-label="View '+escape(p.name)+' details">'+thumb+'</button></div><div class="deal-details"><small>'+escape(p.category)+'</small><strong>'+escape(p.name)+'</strong><div class="deal-pricing"><b>'+money(itemPrice(p))+'</b>'+(discount?'<del>'+money(original)+'</del><span>'+discount+'% off</span>':'')+'</div><button type="button" class="deal-add" data-deal-add="'+p.productId+'">ADD TO BAG +</button></div></article>';
  }).join('');
  bindImageFallbacks($('dealGrid'));
- $('dealGrid').querySelectorAll('[data-deal-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.dealAdd));
+ $('dealGrid').querySelectorAll('[data-deal-add]').forEach(b=>b.onclick=()=>{const p=productById(b.dataset.dealAdd);if(p&&variantOf(p))openProductDetail(p.productId);else addItem(b.dataset.dealAdd)});
  $('dealGrid').querySelectorAll('[data-open-product]').forEach(b=>b.onclick=()=>openProductDetail(b.dataset.openProduct));
 }
 function matchingCatalog(products,{category:cat,city,range,query}){
@@ -388,18 +393,14 @@ async function loadCatalog(){
  }catch(e){$('productGrid').innerHTML='<div class="loading-card">Unable to connect to the retail API on '+escape(API)+'. '+escape(e.message)+'</div>';$('sourceStatus').textContent='● BACKEND OFFLINE';notify('Backend connection failed. Check API port and CORS.',true)}
 }
 async function loadServerCart(){
- if(!user){cart=readGuest();updateCart();return}
+ if(!user){cart={};readGuest();updateCart();return}
  try{
   const carts=await request('/api/carts');
   const server={};
   for(const c of (Array.isArray(carts)?carts:[])){
     for(const p of (c.products||[]))if(p.productId!=null&&p.quantity>0)server[p.productId]=p.quantity;
   }
-  const guest=readGuest();cart=server;
-  if(Object.keys(guest).length){
-    for(const [id,q] of Object.entries(guest))cart[id]=Math.min(99,Number(cart[id]||0)+Number(q||0));
-    await persistCart();localStorage.removeItem('nothing-guest-cart');
-  }
+  readGuest();cart=server;
   updateCart();
  }catch(e){cart={};updateCart();notify('Could not restore your saved cart: '+e.message,true)}
 }
