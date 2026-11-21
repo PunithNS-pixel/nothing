@@ -1,7 +1,9 @@
 -- Durable per-order confirmation state. Created in the same transaction as the order.
+-- Fresh bootstrap runs Flyway before Hibernate creates orders, so do not declare
+-- a foreign key against a JPA-managed table in this migration.
 -- Nothing is backfilled: old historical orders must not be emailed unexpectedly.
 CREATE TABLE IF NOT EXISTS order_confirmation_emails (
-  order_id bigint PRIMARY KEY REFERENCES orders(order_id) ON DELETE CASCADE,
+  order_id bigint PRIMARY KEY,
   status varchar(12) NOT NULL DEFAULT 'PENDING',
   attempts integer NOT NULL DEFAULT 0,
   next_attempt_at timestamptz NOT NULL DEFAULT now(),

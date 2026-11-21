@@ -28,4 +28,8 @@ public class OrderItem {
     private double discount;
     private double orderedProductPrice;
 
+    // Receipt snapshot: product names can change after checkout.
+    @Column(name="ordered_product_name",length=255)
+    private String orderedProductName;
+
 }

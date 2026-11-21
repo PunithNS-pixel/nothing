@@ -61,6 +61,9 @@ public class OrderServiceImpl implements OrderService {
     AuthUtil authUtil;
     @Autowired
     DomainEvents domainEvents;
+
+    @Autowired
+    org.springframework.jdbc.core.JdbcTemplate emailDeliveryJdbc;
     @Autowired
     OrderTrackingService tracking;
 
@@ -109,6 +112,9 @@ public class OrderServiceImpl implements OrderService {
         order.setTotalAmount(quote.total());
         order.setOrderStatus("Accepted");
         order.setAddress(address);
+        String snapshot=String.join(", ",address.getBuildingName(),address.getStreet(),
+            address.getCity(),address.getState(),address.getPincode(),address.getCountry());
+        order.setShippingAddressSnapshot(snapshot.length()>1000?snapshot.substring(0,1000):snapshot);
 
         Payment payment = stripeVerified
             ? new Payment("STRIPE", stripeSessionId, "PAID", "Verified Stripe Checkout webhook", "Stripe")
@@ -138,6 +144,10 @@ public class OrderServiceImpl implements OrderService {
             orderItem.setQuantity(cartItem.getQuantity());
             orderItem.setDiscount(cartItem.getDiscount());
             orderItem.setOrderedProductPrice(cartItem.getProductPrice());
+            String name=cartItem.getProduct().getProductName();
+            String variant=cartItem.getProduct().getVariantLabel();
+            if(variant!=null&&!variant.isBlank())name=name+" / "+variant;
+            orderItem.setOrderedProductName(name.length()>255?name.substring(0,255):name);
             orderItem.setOrder(savedOrder);
             orderItems.add(orderItem);
         }
@@ -159,6 +169,12 @@ public class OrderServiceImpl implements OrderService {
         cartRepository.save(cart);
 
         tracking.recordPlaced(savedOrder);
+        // One durable email job per committed order, in the same PostgreSQL
+        // transaction as stock, payment, order and event outbox. No SMTP call
+        // occurs during the checkout HTTP request.
+        emailDeliveryJdbc.update(
+            "insert into order_confirmation_emails(order_id) values (?) on conflict do nothing",
+            savedOrder.getOrderId());
         domainEvents.record("ORDER_PLACED", null, savedOrder.getOrderId());
         for (CartItem item : cartItems) {
             domainEvents.record("INVENTORY_CHANGED", item.getProduct().getProductId(), savedOrder.getOrderId());

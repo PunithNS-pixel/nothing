@@ -40,6 +40,10 @@ public class Order {
     @Column(length=32) private String offerCode;
     private String orderStatus;
 
+    // Snapshot captured at purchase time so later address edits do not rewrite receipts.
+    @Column(name="shipping_address_snapshot",length=1000)
+    private String shippingAddressSnapshot;
+
     // Optional, manually entered fulfillment data; not an active courier integration.
     @Column(length=80) private String shippingCarrier;
     @Column(length=90) private String shippingTrackingNumber;
