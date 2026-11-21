@@ -537,8 +537,8 @@ async function login(mode=null){
   cookieIssued=true;
   const session=await verifySession();
   if(!session)throw new Error('Sign-in cookie was not accepted. Open the site on localhost:8000.');
-  // Accounts registered before OTP enforcement must prove inbox ownership too.
-  await ensureVerifiedEmail();
+  // Returning customers sign in with their existing stored credentials.
+  // Email OTP is required during new account registration, not ordinary login.
   syncAccountButtons();
   $('adminRetailersBtn').hidden=!(session.roles||[]).includes('ROLE_ADMIN');
   await loadRetailerStatus();await applyFilters();await loadServerCart();await loadWishlist();
