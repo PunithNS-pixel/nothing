@@ -93,6 +93,7 @@ SMTP_PASSWORD=YOUR_PROVIDER_APP_PASSWORD
 SMTP_STARTTLS=true
 EMAIL_FROM=no-reply@your-verified-domain.example
 MAIL_NOTIFICATIONS_ENABLED=true
+MAIL_HEALTH_ENABLED=true
 ```
 
 Choose a real provider and verify the sender domain; the values shown above are placeholders. New signup always requires working SMTP. `MAIL_NOTIFICATIONS_ENABLED=true` starts the RabbitMQ email consumer that sends **actual order confirmation messages** for existing `ORDER_PLACED` outbox events. When disabled, the durable `nothing.notifications` queue holds messages. The Kafka outbox is committed in the same transaction as the order. Email delivery is *at least once*, not exactly once, and can be retried/duplicated after consumer failure. Configure retry limits, DLQ, idempotent delivery records and mailbox provider monitoring for production. No confirmation mail is sent unless real SMTP is configured and working.
