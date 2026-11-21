@@ -29,6 +29,11 @@ public class Product {
     private String image;
     @Column(length = 90)
     private String brand;
+    // Each size is a separate, stock-bearing Product ID. Orders and Stripe use that ID.
+    @Column(length = 180) private String variantGroup;
+    @Column(length = 32) private String variantLabel;
+    @Column(length = 24) private String sizeType;
+    private Double footLengthCm;
     private String city;
     private double price;
     private double discount;

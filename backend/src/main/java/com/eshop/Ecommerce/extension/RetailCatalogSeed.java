@@ -18,7 +18,7 @@ public class RetailCatalogSeed {
  public RetailCatalogSeed(CategoryRepo categories,ProductRepo products,DomainEvents events){
    this.categories=categories;this.products=products;this.events=events;
  }
- @Transactional @EventListener(ApplicationReadyEvent.class)
+ @Transactional @org.springframework.core.annotation.Order(10) @EventListener(ApplicationReadyEvent.class)
  public void seed(){
   if(!enabled)return;
   add("Electronics","Bluetooth Wireless Earbuds",1999,"Noise-isolating true wireless earbuds with charging case", "Bengaluru",40);

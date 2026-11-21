@@ -92,7 +92,8 @@ public class StripeCheckoutGateway {
     .setPriceData(SessionCreateParams.LineItem.PriceData.builder()
        .setCurrency("inr").setUnitAmount(unit)
        .setProductData(SessionCreateParams.LineItem.PriceData.ProductData.builder()
-          .setName(item.getProduct().getProductName()).build())
+          .setName(item.getProduct().getProductName()+
+            (item.getProduct().getVariantLabel()==null?"":" — "+item.getProduct().getVariantLabel())).build())
        .build()).build());
   }
   StripeCheckoutAttempt attempt=new StripeCheckoutAttempt();

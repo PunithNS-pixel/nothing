@@ -14,6 +14,10 @@ public class ProductDTO {
     private String ProductName;
     private String image;
     private String brand;
+    private String variantGroup;
+    private String variantLabel;
+    private String sizeType;
+    private Double footLengthCm;
     private String city;
     private Integer quantity;
     private double price;

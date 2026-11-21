@@ -64,6 +64,7 @@ public class MarketplaceExpansionSeed {
     }
 
     @Transactional
+    @org.springframework.core.annotation.Order(20)
     @EventListener(ApplicationReadyEvent.class)
     public void seed() {
         if (!enabled) return;
@@ -110,6 +111,68 @@ public class MarketplaceExpansionSeed {
             Product saved = products.save(p);
             byName.put(entry.name().toLowerCase(Locale.ROOT), saved);
             events.record("PRODUCT_CHANGED", saved.getProductId(), null);
+        }
+        // Preserve existing product IDs and prices; create additional stock-bearing
+        // demo SKUs only for fashion items that genuinely require a selectable size.
+        seedFashionSizes();
+    }
+
+    static String sizeType(String name) {
+        String s = name.toLowerCase(Locale.ROOT);
+        if (s.matches(".*(sneaker|shoe|trainer|boot|running|footwear).*")) return "SHOE";
+        if (s.matches(".*(t-shirt|tee|hoodie|jacket|shirt|sweatshirt|denim|trouser|jean|dress|socks|knit).*")) return "APPAREL";
+        return null;
+    }
+
+    static List<String> sizesFor(String type) {
+        return "SHOE".equals(type)
+            ? List.of("UK 6","UK 7","UK 8","UK 9","UK 10")
+            : List.of("S","M","L","XL");
+    }
+
+    static Double shoeLength(String size) {
+        return switch(size) {
+            case "UK 6" -> 24.6; case "UK 7" -> 25.4;
+            case "UK 8" -> 26.2; case "UK 9" -> 27.1;
+            case "UK 10" -> 27.9; default -> null;
+        };
+    }
+
+    private void seedFashionSizes() {
+        List<Product> all = products.findAll();
+        Map<String,Product> byName = new HashMap<>();
+        for(Product p:all) byName.put(p.getProductName().toLowerCase(Locale.ROOT),p);
+        for(Product base:all) {
+            if(base.getCategory()==null || !"Fashion".equalsIgnoreCase(base.getCategory().getCategoryName())) continue;
+            if(base.getVariantGroup()!=null && !base.getVariantGroup().isBlank()) continue;
+            String kind=sizeType(base.getProductName());
+            if(kind==null) continue; // Bags/wallets/etc remain one-size items.
+            String group=base.getProductName();
+            String defaultSize="SHOE".equals(kind)?"UK 8":"M";
+            base.setVariantGroup(group);
+            base.setVariantLabel(defaultSize);
+            base.setSizeType(kind);
+            base.setFootLengthCm(shoeLength(defaultSize));
+            products.save(base);
+            events.record("PRODUCT_CHANGED",base.getProductId(),null);
+            for(String size:sizesFor(kind)) {
+                if(size.equals(defaultSize))continue;
+                String name=group+" / "+size;
+                Product variant=byName.get(name.toLowerCase(Locale.ROOT));
+                if(variant==null) {
+                    variant=new Product();
+                    variant.setProductName(name);variant.setDescription(base.getDescription());
+                    variant.setBrand(base.getBrand());variant.setCategory(base.getCategory());
+                    variant.setPrice(base.getPrice());variant.setSpecialPrice(base.getSpecialPrice());
+                    variant.setDiscount(base.getDiscount());variant.setQuantity(Math.max(3,base.getQuantity()/4));
+                    variant.setCity(base.getCity());variant.setImage(base.getImage());
+                }
+                variant.setVariantGroup(group);variant.setVariantLabel(size);
+                variant.setSizeType(kind);variant.setFootLengthCm(shoeLength(size));
+                Product saved=products.save(variant);
+                byName.put(name.toLowerCase(Locale.ROOT), saved);
+                events.record("PRODUCT_CHANGED",saved.getProductId(),null);
+            }
         }
     }
 }

@@ -78,6 +78,8 @@ public class OpenSearchCatalog {
   fields.put("searchText",Map.of("type","text","analyzer","product_substring","search_analyzer","standard"));
   fields.put("category",Map.of("type","keyword"));
   fields.put("brand",Map.of("type","keyword"));
+  fields.put("variantGroup",Map.of("type","keyword"));
+  fields.put("variantLabel",Map.of("type","keyword"));
   fields.put("city",Map.of("type","keyword"));
   fields.put("price",Map.of("type","double"));
   fields.put("quantity",Map.of("type","integer"));
@@ -103,6 +105,8 @@ public class OpenSearchCatalog {
        (product.getBrand()==null?"":product.getBrand()));
   doc.put("category",product.getCategory()==null?"":product.getCategory().getCategoryName());
   doc.put("brand",product.getBrand()==null?"NOTHING SELECT":product.getBrand());
+  doc.put("variantGroup",product.getVariantGroup());
+  doc.put("variantLabel",product.getVariantLabel());
   doc.put("city",product.getCity()==null?"":product.getCity());
   doc.put("price",product.getSpecialPrice());
   doc.put("quantity",product.getQuantity());
