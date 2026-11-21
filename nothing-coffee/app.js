@@ -207,6 +207,94 @@ function drawProducts(){
   }
  });
 }
+
+function openProductDetail(id){
+ const original=productById(id);
+ if(!original){notify('Product is no longer in the catalog.',true);return}
+ const variant=variantOf(original);
+ const sizes=['XS','S','M','L','XL','XXL','6','7','8','9','10','11','12'];
+ const items=variant?catalog.filter(p=>variantOf(p)?.base===variant.base)
+  .sort((a,b)=>sizes.indexOf(variantOf(a).size)-sizes.indexOf(variantOf(b).size)):[original];
+ const name=variant?variant.base:original.name;
+ const dialog=$('productDialog'),root=$('productContent');
+ let selected=original,photoIndex=0,zoomed=false,busy=false;
+ const photos=()=>{
+  const additional=Array.isArray(selected.images)?selected.images:[];
+  const urls=[selected.image,...additional.map(x=>typeof x==='string'?x:x?.url)]
+   .filter(x=>typeof x==='string'&&/^https:\/\//.test(x));
+  const out=[...new Set(urls)].slice(0,8).map((url,i)=>({url,label:i?'Photo '+(i+1):'Product photo',crop:false}));
+  if(out.length===1)out.push({url:out[0].url,label:'Close-up',crop:true});
+  return out;
+ };
+ const updateLink=()=>{
+  const url=new URL(location.href);url.searchParams.set('product',selected.productId);
+  history.replaceState(null,'',url.pathname+url.search+url.hash);
+ };
+ const close=()=>{
+  if(busy)return;
+  if(dialog.open)dialog.close();
+ };
+ const paint=()=>{
+  if(!dialog.open)return;
+  const gallery=photos(),current=gallery[photoIndex]||gallery[0];
+  const markup=current
+   ?'<img data-product-image="'+selected.productId+'" src="'+escape(current.url)+'" class="'+(current.crop?'detail-crop':'')+'" alt="'+escape(name)+' '+escape(current.label)+'">'
+   :productArtwork(selected);
+  const cost=itemPrice(selected);
+  const reduced=Number(selected.originalPrice)>cost
+   ?Math.round((Number(selected.originalPrice)-cost)/Number(selected.originalPrice)*100):0;
+  const hasStock=Number(selected.stock)>0;
+  const sizeButtons=items.length>1?'<div class="detail-size-block"><div class="detail-section-header"><strong>SELECT '+(/shoe|sneaker/i.test(name)?'SHOE SIZE':'SIZE')+'</strong><button id="productSizeGuide" type="button">SIZE GUIDE ↗</button></div><div class="detail-size-list">'+items.map(p=>
+   '<button type="button" data-detail-size="'+p.productId+'" class="'+(p.productId===selected.productId?'selected':'')+'" aria-pressed="'+(p.productId===selected.productId)+'" '+(p.stock<1?'disabled':'')+'>'+escape(variantOf(p)?.size||'')+'</button>').join('')+'</div></div>':'';
+  root.innerHTML='<div class="detail-topbar"><div><span class="eyebrow">NOTHING MARKET / '+escape(selected.category)+'</span><h2>'+escape(name)+'</h2></div><button type="button" class="detail-close" id="detailClose">✕</button></div>'+
+   '<div class="detail-body"><div class="detail-gallery"><div class="detail-main-media"><button type="button" id="detailZoom" class="detail-zoom'+(zoomed?' zoomed':'')+'" aria-label="Enlarge product photo">'+markup+'</button><span class="detail-zoom-hint">'+(zoomed?'CLICK TO RESET':'CLICK IMAGE TO ZOOM')+'</span></div>'+
+   '<div class="detail-thumbnails">'+gallery.map((p,i)=>'<button type="button" data-detail-photo="'+i+'" class="detail-thumb '+(i===photoIndex?'selected':'')+'" aria-pressed="'+(i===photoIndex)+'" aria-label="'+escape(p.label)+'"><img loading="lazy" src="'+escape(p.url)+'" alt=""><small>'+escape(p.label)+'</small></button>').join('')+'</div>'+
+   '<p class="detail-photo-note">Representative catalog photography. Additional views appear when supplied for this exact item; close-up uses the same source photo.</p></div>'+
+   '<div class="detail-information"><span class="detail-category">'+escape(selected.category)+' · '+escape(selected.city||'India')+'</span>'+
+   '<p class="detail-description">'+escape(selected.description)+'</p><div class="detail-price-row">'+(reduced?'<b class="detail-sale">↓ '+reduced+'% OFF</b><del>'+money(selected.originalPrice)+'</del>':'')+
+   '<strong>'+money(cost)+'</strong></div><p class="detail-availability">'+(hasStock?'✓ IN STOCK · '+selected.stock+' AVAILABLE':'CURRENTLY OUT OF STOCK')+'</p>'+
+   sizeButtons+
+   '<div class="detail-delivery"><strong>DELIVERY INFORMATION</strong><p>Confirm your address, mobile number and PIN at checkout. No delivery date is promised until delivery integration is configured.</p></div>'+
+   '<div class="detail-button-row"><button type="button" id="detailWishlist" class="detail-wishlist">'+(wishlistIds.has(String(selected.productId))?'♥ SAVED':'♡ SAVE')+'</button>'+
+   '<button type="button" id="detailAdd" class="detail-add" '+(!hasStock?'disabled':'')+'>ADD TO CART</button>'+
+   '<button type="button" id="detailBuy" class="detail-buy" '+(!hasStock?'disabled':'')+'>BUY NOW ↗</button></div>'+
+   '<p class="detail-pay-note">Cash on Delivery · Stripe Checkout when configured</p></div></div>';
+  $('detailClose').onclick=close;
+  $('detailZoom').onclick=()=>{zoomed=!zoomed;paint()};
+  $('detailZoom').onmousemove=e=>{
+   if(!zoomed)return;
+   const rect=e.currentTarget.getBoundingClientRect(),photo=e.currentTarget.querySelector('img');
+   if(photo)photo.style.transformOrigin=Math.max(0,Math.min(100,100*(e.clientX-rect.left)/rect.width))+'% '+Math.max(0,Math.min(100,100*(e.clientY-rect.top)/rect.height))+'%';
+  };
+  root.querySelectorAll('[data-detail-photo]').forEach(btn=>btn.onclick=()=>{
+   photoIndex=Number(btn.dataset.detailPhoto);zoomed=false;paint();
+  });
+  root.querySelectorAll('[data-detail-size]').forEach(btn=>btn.onclick=()=>{
+   const p=productById(btn.dataset.detailSize);
+   if(p&&p.stock>0){selected=p;photoIndex=0;zoomed=false;variantSelections.set(name,String(p.productId));updateLink();paint()}
+  });
+  if($('productSizeGuide'))$('productSizeGuide').onclick=()=>{
+   const text=/shoe|sneaker/i.test(name)
+    ?'The numbers refer to shoe size SKUs only. The seller has not supplied verified centimetre or UK/US size conversions yet.'
+    :'The letters are stock size labels. The seller has not supplied body measurements or a verified garment-fit chart yet.';
+   informationModal('SIZE GUIDE',text);
+  };
+  $('detailWishlist').onclick=async()=>{await toggleWishlist(selected.productId);paint()};
+  $('detailAdd').onclick=async()=>{if(busy)return;busy=true;const added=await addItem(selected.productId);busy=false;if(added)paint()};
+  $('detailBuy').onclick=async()=>{if(busy)return;busy=true;const added=await addItem(selected.productId);busy=false;
+   if(added){close();await checkout()}
+  };
+  bindImageFallbacks(root);
+ };
+ dialog.oncancel=e=>{e.preventDefault();close()};
+ dialog.onclose=()=>{
+  const url=new URL(location.href);url.searchParams.delete('product');
+  history.replaceState(null,'',url.pathname+url.search+url.hash);
+ };
+ if(dialog.open)dialog.close();
+ dialog.showModal();updateLink();paint();
+}
+
 function renderCategoryShowcase(){
  $('categoryShowcase').innerHTML=productCategories.map(c=>{
   const count=presentProducts(catalog.filter(p=>p.category===c.name)).length;
