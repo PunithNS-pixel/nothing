@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** Simulate an email provider; never use a real mailbox or live SMTP server in CI. */
-@SpringBootTest(properties={"nothing.email.verification.required=true","nothing.email.from=noreply@demo.example","management.health.mail.enabled=false"})
+@SpringBootTest(properties={"nothing.email.verification.required=true","nothing.email.from=noreply@demo.example","management.health.mail.enabled=false","spring.mail.host=smtp.test.invalid"})
 @AutoConfigureMockMvc
 class EmailVerificationRegistrationTest {
  @Autowired MockMvc mvc;
@@ -40,6 +40,8 @@ class EmailVerificationRegistrationTest {
     .andExpect(jsonPath("$.available").value(true));
   mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
     .content(signup)).andExpect(status().isBadRequest());
+  assertTrue(users.findByEmailIgnoreCase(email).isEmpty(),
+      "An address without inbox ownership proof must never be registered");
 
   mvc.perform(post("/api/auth/email/start").contentType(MediaType.APPLICATION_JSON)
     .content(mapper.writeValueAsString(Map.of("email",email)))).andExpect(status().isOk());

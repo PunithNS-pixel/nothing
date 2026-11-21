@@ -101,6 +101,14 @@ public class AuthServiceImpl implements AuthService {
             return ResponseEntity.badRequest().body(new MessageResponse("Error: Email is already in use!"));
         }
 
+        // Do not silently create unverified accounts when the required mail provider
+        // is missing. A fake address is not evidence of inbox ownership.
+        if(emailVerification.required() && !emailVerification.available()){
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                "Account creation requires working SMTP email verification. Configure SMTP_HOST and SMTP_FROM.");
+        }
+
         // Create new user's account
         User user = new User(
                 signUpRequest.getUsername(),

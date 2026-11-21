@@ -31,13 +31,15 @@ public class EmailVerificationService {
 
  @Value("${nothing.email.verification.required:false}") private boolean required;
  @Value("${nothing.email.from:}") private String from;
+ @Value("${spring.mail.host:}") private String smtpHost;
 
  public EmailVerificationService(EmailVerificationChallengeRepository challenges,
   UserRepository users,AuthUtil auth,PasswordEncoder encoder,ObjectProvider<JavaMailSender> mailers){
   this.challenges=challenges;this.users=users;this.auth=auth;this.encoder=encoder;this.mailers=mailers;
  }
  public boolean required(){return required;}
- public boolean available(){return mailers.getIfAvailable()!=null && from!=null && !from.isBlank();}
+ public boolean available(){return mailers.getIfAvailable()!=null && from!=null && !from.isBlank()
+     && smtpHost!=null && !smtpHost.isBlank();}
  public record EmailRequest(@NotBlank @Email String email){}
  public record CodeRequest(@NotBlank @Email String email,@NotBlank String code){}
  public record TokenRequest(@NotBlank String token){}

@@ -49,6 +49,10 @@ class CustomerBrowserCheckoutTest {
   var login=mvc.perform(post("/api/auth/signin")
    .contentType(MediaType.APPLICATION_JSON).content(credentials))
    .andExpect(status().isOk()).andReturn();
+  // Unknown credentials must not grant a session, even with a plausible email.
+  mvc.perform(post("/api/auth/signin").contentType(MediaType.APPLICATION_JSON)
+   .content(json.writeValueAsString(Map.of("username","unknown"+suffix,
+     "password","NotTheirPassword!2026")))).andExpect(status().isUnauthorized());
   Cookie jwt=login.getResponse().getCookie("nothingSession");
   assertNotNull(jwt,"Sign-in must issue the authentication cookie");
   assertEquals("/api",jwt.getPath());
