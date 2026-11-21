@@ -102,3 +102,34 @@ Do not commit `backend/.env`. New signups receive a six-digit OTP valid for ten 
 **Important:** `EMAIL_VERIFICATION_REQUIRED=false` remains the development default so local demo sign-in and older automated fixtures keep working without SMTP. In that mode a syntactically valid email is **not** verified; do not present it as verified to users. Switch to `true` before any real store launch. Provider delivery, abuse protection per IP, bounce handling, and operational monitoring remain deployment responsibilities. Verification demonstrates control of the inbox, not identity or physical-address verification.
 
 Promotions are seeded only on untouched demo products with known original prices, with the server enforcing current `specialPrice`. Do not claim flash-sale expiry or product reviews that do not exist. Photographs are representative Unsplash demo media; Amazon/Flipkart photos and brand assets have **not** been copied. Obtain actual seller product/size media, measurements, photo rights and commercial inventory before launch.
+
+
+## Marketplace checkout release — November 2026
+
+The customer flow now has a responsive three-stage dialog, rather than a series of disconnected prompts:
+
+1. Address — saved-address cards; add, edit, name, phone and six-digit PIN; explicit selection.
+2. Confirm details — delivery summary, per-item photos, actual size SKU, live item quantities, subtotal and verified price markdowns.
+3. Payment — Cash on Delivery or Stripe Checkout. Stripe is shown as disabled when it has no test credentials. COD submits directly to the Spring Boot order API with no typed YES field.
+
+COD requests now carry a customer-generated UUID checkout token. PostgreSQL stores this token uniquely with the order, and a repeated request with the same token returns the original order ID without decrementing stock again. This protects the customer from double orders when retrying a lost network response. The UI disables the Place Order button while the request is active. It also shows the recorded order ID and a link to real order history.
+
+Authenticated order history now includes purchased products, quantities and payment method/status, mapped inside a database transaction. Authenticated wishlists have their own PostgreSQL table and per-user API, with account isolation tests. The header account dropdown has functioning Sign In, Create Account, Profile, Addresses, Orders, Saved Items and Retailer paths; it intentionally does not pretend to offer rewards, loyalty points, shipment tracking or 24-hour support where services are not implemented.
+
+The category icon rail works on desktop and mobile. Filter and search now use live PostgreSQL catalog matches when OpenSearch is unavailable or still catching up to the latest product seed, rather than showing empty results from an index outage.
+
+### Run the release on Windows PowerShell
+
+    cd C:\Users\msome\OneDrive\Desktop\nothing
+    git switch backend
+    git pull origin backend
+    docker compose -f backend/compose.yml --env-file backend/.env up -d --build app frontend
+    docker compose -f backend/compose.yml --env-file backend/.env ps -a
+
+Open http://localhost:8000 and hard-refresh with Ctrl + Shift + R. The backend rebuild is required for the new orders checkout token and wishlist database schema; the frontend is bind-mounted into Nginx.
+
+Test: sign in; add an item plus a fashion SKU with a selected size; proceed to cart; choose or add delivery address; review line items and change quantities; continue to Payment; choose COD; press Place COD Order once; verify new order and inventory; on the next transaction, try Stripe sandbox Checkout while the signed webhook CLI listener is running.
+
+### Launch readiness limitations
+
+This is an end-to-end local demo, not yet a production retail service. With email verification required, the environment must provide a genuine SMTP account; otherwise its default remains disabled. Delivery phone format checks are not SMS possession verification. Product photos are representative curated media, not proof of inventory or model-size fit. Estimated delivery dates, open-box delivery, courier tracking, cancellation/refund operations, payment failure reconciliation, seller-managed size charts, and a real consumer-support service must be implemented before displaying those promises. Never copy marketplace product images without rights, and never commit Stripe or SMTP secrets.
