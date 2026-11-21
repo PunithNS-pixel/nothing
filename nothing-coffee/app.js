@@ -91,10 +91,12 @@ function showCartNudge(p){
  showCartNudge.timer=setTimeout(()=>{bar.hidden=true;bar.classList.remove('show')},6500);
 }
 async function addItem(id){
- if(await changeQty(id,1)){
+ const added=await changeQty(id,1);
+ if(added){
   const p=productById(id);
   if(p)showCartNudge(p);
  }
+ return added;
 }
 async function loadWishlist(){
  wishlistIds=new Set();
@@ -183,9 +185,10 @@ function drawProducts(){
   const off=p.originalPrice>p.price?Math.round((p.originalPrice-p.price)*100/p.originalPrice):0;
   const deal=off>0?'<span class="discount-label">'+off+'% OFF</span>':'';
   const choices=p.variants?'<label class="card-size-picker">SIZE <select aria-label="Choose size for '+escape(p.name)+'" data-variant-select>'+p.variants.map(v=>'<option value="'+v.productId+'" '+(v.stock<1?'disabled':'')+' '+(v.productId===p.productId?'selected':'')+'>'+escape(v.sizeLabel)+(v.stock<1?' · SOLD OUT':'')+'</option>').join('')+'</select></label>':'';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+image+'<button type="button" class="wishlist-toggle" data-wish="'+safeId+'" aria-pressed="'+wishlistIds.has(String(safeId))+'" aria-label="Save to wishlist">'+(wishlistIds.has(String(safeId))?'♥':'♡')+'</button>'+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p>'+choices+'<div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+ (tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'IN STOCK':'SOLD OUT')+'</span>'+deal+'<button type="button" class="product-image-trigger" data-open-product="'+safeId+'" aria-label="View '+escape(p.name)+' details">'+image+'</button><button type="button" class="wishlist-toggle" data-wish="'+safeId+'" aria-pressed="'+wishlistIds.has(String(safeId))+'" aria-label="Save to wishlist">'+(wishlistIds.has(String(safeId))?'♥':'♡')+'</button>'+'</div><div class="product-info"><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3><button type="button" class="product-title-trigger" data-open-product="'+safeId+'">'+escape(p.name)+'</button></h3><p class="description">'+escape(p.description)+'</p>'+choices+'<div class="product-bottom"><div class="price-stack"><strong class="price">'+money(itemPrice(p))+'</strong>'+(off>0?'<del>'+money(p.originalPrice)+'</del>':'')+'</div><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD +')+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
+ $('productGrid').querySelectorAll('[data-open-product]').forEach(b=>b.onclick=()=>openProductDetail(b.dataset.openProduct));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{
   const chooser=b.closest('.product-card').querySelector('[data-variant-select]');
   addItem(chooser?chooser.value:b.dataset.add);
@@ -221,10 +224,11 @@ function renderDeals(){
  $('dealGrid').innerHTML=deals.map(p=>{
   const original=Number(p.originalPrice),discount=original>p.price?Math.round((original-p.price)*100/original):0;
   const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+p.productId+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':productArtwork(p);
-  return '<article class="deal-card"><div class="deal-image">'+thumb+'</div><div class="deal-details"><small>'+escape(p.category)+'</small><strong>'+escape(p.name)+'</strong><div class="deal-pricing"><b>'+money(itemPrice(p))+'</b>'+(discount?'<del>'+money(original)+'</del><span>'+discount+'% off</span>':'')+'</div><button type="button" class="deal-add" data-deal-add="'+p.productId+'">ADD TO BAG +</button></div></article>';
+  return '<article class="deal-card"><div class="deal-image"><button type="button" class="deal-image-trigger" data-open-product="'+p.productId+'" aria-label="View '+escape(p.name)+' details">'+thumb+'</button></div><div class="deal-details"><small>'+escape(p.category)+'</small><strong>'+escape(p.name)+'</strong><div class="deal-pricing"><b>'+money(itemPrice(p))+'</b>'+(discount?'<del>'+money(original)+'</del><span>'+discount+'% off</span>':'')+'</div><button type="button" class="deal-add" data-deal-add="'+p.productId+'">ADD TO BAG +</button></div></article>';
  }).join('');
  bindImageFallbacks($('dealGrid'));
  $('dealGrid').querySelectorAll('[data-deal-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.dealAdd));
+ $('dealGrid').querySelectorAll('[data-open-product]').forEach(b=>b.onclick=()=>openProductDetail(b.dataset.openProduct));
 }
 function matchingCatalog(products,{category:cat,city,range,query}){
  const [min,max]=range?range.split('-').map(Number):[null,null];
