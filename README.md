@@ -43,7 +43,7 @@ Use `bash scripts/smoke-marketplace.sh` for read-only verification. To exercise 
 
 This branch is a **multicategory e-commerce demonstration** with a redesigned bold Nothing-style website and the original **Java Spring Boot** commerce services. It adds **56 product records** across Fashion, Toys & Games, Electronics (Tech), and Gadgets with **23 synthetic demo brands** and **28 distinct representative photo references**, on top of the original 46-product seed (approximately 102 items on a clean database). Prices, brands, stock and images in this seed are fictitious and illustrative, **not actual merchant offers**. Product photos are licensed from Unsplash but may **not** depict the exact named demo item. Do not advertise them as verified authentic inventory or take real payments until real seller/product validation is complete.
 
-Read [Marketplace Setup](docs/README_MARKETPLACE.md), [Frontend Guide](nothing-coffee/README.md), and [Photo Credits](nothing-coffee/PHOTO_CREDITS.md).
+Read [Authentication and Marketplace Features](docs/AUTH_AND_MARKETPLACE_FEATURES.md), [Marketplace Setup](docs/README_MARKETPLACE.md), [Frontend Guide](nothing-coffee/README.md), and [Photo Credits](nothing-coffee/PHOTO_CREDITS.md).
 
 ## Marketplace recovery, size-specific SKUs and buying UX (November 21, 2026)
 
