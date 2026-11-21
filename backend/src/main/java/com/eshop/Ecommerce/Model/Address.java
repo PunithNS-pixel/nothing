@@ -45,6 +45,12 @@ public class Address {
     private String pincode;
 
 
+    // Delivery contact is persisted with the address; new checkout requires it.
+    @Column(length=80) private String recipientName;
+    @Column(length=16) private String phoneNumber;
+    @Column(length=120) private String landmark;
+    @Column(length=24) private String addressLabel;
+
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;

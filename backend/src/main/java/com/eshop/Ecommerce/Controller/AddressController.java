@@ -27,6 +27,18 @@ public class AddressController {
     @Autowired
     AddressRepository addressRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${checkout.require.phone:false}")
+    private boolean requirePhone;
+
+    private void validateDeliveryContact(AddressDTO dto){
+        if(!requirePhone)return;
+        if(dto.getRecipientName()==null||dto.getRecipientName().trim().length()<2
+          ||dto.getPhoneNumber()==null||!dto.getPhoneNumber().matches("\\+?[0-9]{10,15}")
+          ||dto.getPincode()==null||!dto.getPincode().matches("[0-9]{6}"))
+          throw new org.springframework.web.server.ResponseStatusException(
+            HttpStatus.BAD_REQUEST,"Recipient name, valid mobile number and six-digit PIN are required");
+    }
+
     private void requireAddressOwner(Long addressId){
         var saved=addressRepository.findById(addressId).orElseThrow(()->new ResourceNotFoundException("Address","addressId",addressId));
         if(saved.getUser()==null || !saved.getUser().getUserid().equals(authUtil.loggedInUser().getUserid()))
@@ -35,6 +47,7 @@ public class AddressController {
 
     @PostMapping("/addresses")
     public ResponseEntity<AddressDTO> createAddress(@Valid @RequestBody AddressDTO addressDTO){
+        validateDeliveryContact(addressDTO);
         User user = authUtil.loggedInUser();
         AddressDTO savedAddressDTO = addressService.createAddress(addressDTO, user);
         return new ResponseEntity<>(savedAddressDTO, HttpStatus.CREATED);
@@ -63,8 +76,9 @@ public class AddressController {
 
     @PutMapping("/addresses/{addressId}")
     public ResponseEntity<AddressDTO> updateAddress(@PathVariable Long addressId
-            , @RequestBody AddressDTO addressDTO){
+            , @Valid @RequestBody AddressDTO addressDTO){
         requireAddressOwner(addressId);
+        validateDeliveryContact(addressDTO);
         AddressDTO updatedAddress = addressService.updateAddress(addressId, addressDTO);
         return new ResponseEntity<>(updatedAddress, HttpStatus.OK);
     }

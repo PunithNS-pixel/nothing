@@ -56,6 +56,8 @@ public class OrderServiceImpl implements OrderService {
     AuthUtil authUtil;
     @Autowired
     DomainEvents domainEvents;
+    @org.springframework.beans.factory.annotation.Value("${checkout.require.phone:false}")
+    private boolean requireDeliveryPhone;
 
     @Override
     @Transactional
@@ -85,6 +87,12 @@ public class OrderServiceImpl implements OrderService {
 
         if(address.getUser()==null || !emailId.equalsIgnoreCase(address.getUser().getEmail())) {
             throw new APIException("Shipping address does not belong to the current customer");
+        }
+        if(requireDeliveryPhone && (address.getPhoneNumber()==null
+            || !address.getPhoneNumber().matches("\\+?[0-9]{10,15}")
+            || address.getRecipientName()==null || address.getRecipientName().isBlank()
+            || !address.getPincode().matches("[0-9]{6}"))) {
+            throw new APIException("Add a valid delivery name, phone and six-digit PIN before ordering");
         }
         Order order = new Order();
         order.setEmail(emailId);

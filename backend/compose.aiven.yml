@@ -33,6 +33,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: nothing
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RabbitMQ password}
+      CHECKOUT_REQUIRE_PHONE: ${CHECKOUT_REQUIRE_PHONE:-true}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:8000/?checkout=stripe-success}
