@@ -1,6 +1,7 @@
 # Aiven-managed PostgreSQL, Kafka and OpenSearch. Only supporting services run locally.
 # Run from repository root:
 # docker compose -f backend/compose.aiven.yml --env-file backend/.env.aiven up --build -d
+name: nothing-aiven
 services:
   app:
     build:
