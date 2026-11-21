@@ -57,6 +57,19 @@ class OrderTrackingPersistenceTest {
     }
 
     @Test
+    void sellerCannotFulfillAnOrderWithoutOwningAnyProduct() {
+        Order order=sampleOrder();
+        tracking.recordPlaced(order);
+        com.eshop.Ecommerce.Model.User seller=new com.eshop.Ecommerce.Model.User();
+        seller.setUserid(123456L);
+        when(auth.loggedInUser()).thenReturn(seller);
+        assertThrows(ResponseStatusException.class,()->
+            tracking.updateSeller(order.getOrderId(),
+                new OrderTrackingService.UpdateRequest("PACKED",null,null,null,null)));
+        assertEquals(1,eventRepo.findByOrderOrderIdOrderByOccurredAtAscIdAsc(order.getOrderId()).size());
+    }
+
+    @Test
     void skippingMilestonesIsRejectedAndDoesNotCreateARecord() {
         Order order=sampleOrder();
         tracking.recordPlaced(order);
