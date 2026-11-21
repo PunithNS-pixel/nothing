@@ -11,6 +11,7 @@ import com.eshop.Ecommerce.Service.CartService;
 import com.eshop.Ecommerce.Service.OrderService;
 import com.eshop.Ecommerce.Util.AuthUtil;
 import com.eshop.Ecommerce.extension.DomainEvents;
+import com.eshop.Ecommerce.extension.OrderTrackingService;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +57,8 @@ public class OrderServiceImpl implements OrderService {
     AuthUtil authUtil;
     @Autowired
     DomainEvents domainEvents;
+    @Autowired
+    OrderTrackingService tracking;
 
     @Override
     @Transactional
@@ -137,6 +140,7 @@ public class OrderServiceImpl implements OrderService {
             cartService.deleteProductFromCart(cart.getCartId(), item.getProduct().getProductId());
         });
 
+        tracking.recordPlaced(savedOrder);
         domainEvents.record("ORDER_PLACED", null, savedOrder.getOrderId());
         for (CartItem item : cartItems) {
             domainEvents.record("INVENTORY_CHANGED", item.getProduct().getProductId(), savedOrder.getOrderId());
@@ -172,12 +176,17 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public OrderDTO updateOrder(Long orderId, String status) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order","orderId",orderId));
-        order.setOrderStatus(status);
-        orderRepository.save(order);
-        return modelMapper.map(order, OrderDTO.class);
+        Order updated=tracking.updateAdmin(orderId,new OrderTrackingService.UpdateRequest(status,null,null,null,null));
+        return modelMapper.map(updated, OrderDTO.class);
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public OrderDTO updateSellerOrder(Long orderId, String status) {
+        Order updated=tracking.updateSeller(orderId,new OrderTrackingService.UpdateRequest(status,null,null,null,null));
+        return modelMapper.map(updated, OrderDTO.class);
     }
 
     // get all seller orders for seller panel :>
