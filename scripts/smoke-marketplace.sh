@@ -14,10 +14,13 @@ rows=json.load(sys.stdin)
 assert len(rows) >= 100, f"expected >=100 items, got {len(rows)}"
 brands={x.get("brand") for x in rows if x.get("brand")}
 assert len(brands)>=20, brands
+variants=[p for p in rows if p.get("variantLabel")]
+assert len(variants)>=20, f"Expected size-specific stock SKUs; found {len(variants)}"
+assert any(p.get("sizeType")=="SHOE" and p.get("footLengthCm") for p in variants), "Shoe cm sizing missing"
 categories={x["category"] for x in rows}
 assert {"Fashion","Electronics","Gadgets","Toys & Games"}.issubset(categories),categories
 assert all(x.get("image", "").startswith("https://") for x in rows if x.get("brand") != "NOTHING SELECT")
-print("CATALOG PASS", len(rows),"products,",len(brands),"brands, categories:",sorted(categories))
+print("CATALOG PASS", len(rows),"stock-bearing SKUs,",len(brands),"brands,",len(variants),"size variants, categories:",sorted(categories))
 ' 2>/dev/null; then break; fi
   if [ "$attempt" -eq 50 ]; then
     echo 'FAIL: catalog not ready, expected 100+ products'; "${COMPOSE[@]}" logs --tail=100 app; exit 1
