@@ -35,6 +35,19 @@ public class AuthController {
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
         return authService.register(signUpRequest);
     }
+    @PostMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@Valid @RequestBody com.eshop.Ecommerce.Security.Services.EmailSignupService.VerifyRequest body) {
+        return emailSignup.verify(body);
+    }
+
+    @PostMapping("/resend-code")
+    public ResponseEntity<?> resendCode(@Valid @RequestBody com.eshop.Ecommerce.Security.Services.EmailSignupService.ResendRequest body) {
+        return emailSignup.resend(body);
+    }
+
+    @Autowired
+    private com.eshop.Ecommerce.Security.Services.EmailSignupService emailSignup;
+
     @GetMapping("/username")
     public String getCurrUserName(Authentication authentication) {
         if(authentication!=null && authentication.isAuthenticated()
