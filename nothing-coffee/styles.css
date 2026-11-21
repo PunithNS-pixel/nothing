@@ -244,3 +244,16 @@ button[hidden],.nav-button[hidden]{display:none!important}
  .checkout-line-price{font-size:12px}
  .checkout-success{padding:34px 20px}
 }
+
+/* Saved items persisted per customer in PostgreSQL */
+.wishlist-toggle{position:absolute;bottom:12px;right:13px;z-index:3;background:#fff;border:1px solid #e3e5e5;border-radius:50%;height:42px;width:42px;display:grid;place-items:center;font-size:26px;color:#3c4759;box-shadow:0 3px 16px #1112}
+.wishlist-toggle[aria-pressed=true]{color:#df375a;background:#fff4f5;border-color:#f1b9c4}
+.wishlist-toggle:hover{transform:scale(1.08)}
+.wish-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid #e5e8e7}
+.wish-row-info{display:flex;flex-direction:column;min-width:0;gap:5px}
+.wish-row-info strong{font-size:13px}
+.wish-row-info small{color:#6a7888;font-size:11px}
+.wish-actions{display:flex;gap:7px}
+.wish-actions button{border:1px solid #dce4da;background:#edf7df;border-radius:7px;padding:9px;font-weight:800;font-size:10px}
+.wish-actions button:last-child{background:#fff;color:#a23c3c}
+@media(max-width:520px){.wish-row{flex-wrap:wrap}.wish-actions{width:100%}}
