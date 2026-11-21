@@ -83,6 +83,14 @@ public class RetailCatalogSeed {
   add("Fashion","Urban Running Shoes - Size 8",2199,"Breathable running shoes with size-specific inventory","Hyderabad",18);
   add("Fashion","Urban Running Shoes - Size 9",2199,"Breathable running shoes with size-specific inventory","Hyderabad",18);
   add("Fashion","Urban Running Shoes - Size 10",2199,"Breathable running shoes with size-specific inventory","Hyderabad",18);
+  offerDemoMarkdown("Bluetooth Wireless Earbuds",1999,1699);
+  offerDemoMarkdown("LED Desk Lamp",1099,899);
+  offerDemoMarkdown("Classic Cotton T-Shirt",499,399);
+  offerDemoMarkdown("Premium Basmati Rice 1kg",189,159);
+  offerDemoMarkdown("Daily Sunscreen SPF 50",399,329);
+  offerDemoMarkdown("Portable Bluetooth Speaker",2499,2099);
+  offerDemoMarkdown("Stainless Steel Water Bottle",599,499);
+  offerDemoMarkdown("Everyday Canvas Backpack",1499,1249);
  }
  private void add(String categoryName,String name,double price,String description,String city,int stock){
   java.util.Optional<Product> existing=products.findAll().stream()
@@ -101,6 +109,19 @@ public class RetailCatalogSeed {
   p.setQuantity(stock);p.setPrice(price);p.setSpecialPrice(price);p.setDiscount(0);
   p.setCity(city);p.setCategory(category);p.setImage(imageFor(name));
   Product stored=products.save(p);events.record("PRODUCT_CHANGED",stored.getProductId(),null);
+ }
+ // Use only demonstrably seeded, unmodified prices. Never overwrite retailer pricing or stock.
+ private void offerDemoMarkdown(String name,double regular,double sale){
+  products.findAll().stream().filter(p->name.equals(p.getProductName()) && p.getUser()==null).findFirst()
+   .ifPresent(p->{
+    if(Double.compare(p.getPrice(),regular)==0 && Double.compare(p.getSpecialPrice(),regular)==0
+       && Double.compare(p.getDiscount(),0)==0){
+     p.setSpecialPrice(sale);
+     p.setDiscount(Math.round((regular-sale)*10000.0/regular)/100.0);
+     products.save(p);
+     events.record("PRODUCT_CHANGED",p.getProductId(),null);
+    }
+   });
  }
  private String imageFor(String name){
    // Fashion size SKUs share their real item's photo; they do not imply different model photography.

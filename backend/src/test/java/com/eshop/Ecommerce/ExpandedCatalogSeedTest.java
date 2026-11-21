@@ -21,7 +21,13 @@ class ExpandedCatalogSeedTest {
   assertTrue(first.stream().anyMatch(p->"Portable SSD 512GB".equals(p.getProductName())));
   assertTrue(first.stream().anyMatch(p->"Daily Body Lotion 400ml".equals(p.getProductName())));
   assertTrue(first.stream().anyMatch(p->"Arabica Coffee Beans 250g".equals(p.getProductName())));
-  assertTrue(first.size()>=46,"The 14 original and 32 additional products should be present");
+  assertTrue(first.size()>=62,"The 46 base items and 16 independently stocked size SKUs should be present");
+  var earbuds=first.stream().filter(p->"Bluetooth Wireless Earbuds".equals(p.getProductName())).findFirst().orElseThrow();
+  assertTrue(earbuds.getSpecialPrice()<=earbuds.getPrice());
+  var sizes=first.stream().filter(p->p.getProductName().startsWith("Unisex Hoodie - Size ")).toList();
+  assertEquals(4,sizes.size());
+  assertEquals(4,sizes.stream().map(p->p.getProductId()).distinct().count());
+  assertTrue(sizes.stream().allMatch(p->p.getQuantity()>0));
   // Each seeded photo URL is unique; avoid repeating a generic photo on many cards.
   var photos=first.stream().filter(p->p.getImage()!=null&&!p.getImage().isBlank())
     .filter(p->p.getProductName().equals("Stackable Storage Boxes")
