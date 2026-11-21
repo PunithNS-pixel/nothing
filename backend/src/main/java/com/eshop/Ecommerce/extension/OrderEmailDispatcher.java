@@ -18,7 +18,7 @@ import java.util.List;
  * PostgreSQL is the durable source of truth for sending confirmation mail.
  * Atomic row claims make concurrent Spring replicas and duplicate Rabbit events safe.
  * Email-provider delivery is outside the DB transaction; exact-once delivery cannot be guaranteed if
- * the process crashes after SMTP accepts the message but before marking SENT.
+ * the process crashes after a mail provider accepts the message but before marking SENT.
  */
 @Component
 @ConditionalOnProperty(name="nothing.notifications.mail-enabled",havingValue="true")
@@ -38,15 +38,16 @@ public class OrderEmailDispatcher {
   this.jdbc=jdbc;this.composer=composer;this.mail=mail;this.from=from;
   this.batchLimit=Math.max(1,Math.min(batchLimit,50));
   if(from==null||from.isBlank()||(!"gmail-api".equalsIgnoreCase(provider)
+      && !"resend".equalsIgnoreCase(provider)
       && (smtpHost==null||smtpHost.isBlank())))
-   throw new IllegalStateException("Email notifications require EMAIL_FROM and a configured SMTP or Gmail API provider");
+   throw new IllegalStateException("Email notifications require EMAIL_FROM and a configured SMTP, Gmail API or Resend provider");
  }
 
  /** A duplicate / concurrent attempt is a no-op, not a second email. */
  public void deliver(Long id){
   if(id==null||id<1)return;
-  // If an SMTP call crashed, another replica may retry after the lease expires.
-  // Keep the 2-minute lease above configured SMTP timeouts.
+  // If an email provider call crashed, another replica may retry after the lease expires.
+  // Keep the 2-minute lease above configured provider timeouts.
   int owned=jdbc.update(
    "update order_confirmation_emails set status='SENDING', claimed_at=now(), attempts=attempts+1 " +
    "where order_id=? and " +
@@ -61,6 +62,10 @@ public class OrderEmailDispatcher {
    helper.setTo(confirmation.to());
    helper.setSubject(confirmation.subject());
    helper.setText(confirmation.plainText(),confirmation.htmlText());
+   // Resend honors this key for 24h, covering most delivery retries if a
+   // provider accepts a request immediately before the worker crashes.
+   // Never use order attempt count: retries must reuse the same key.
+   message.setHeader("X-Nothing-Idempotency-Key","nothing-order-confirmation-"+id);
    mail.send(message);
    if(jdbc.update("update order_confirmation_emails set status='SENT',sent_at=now()," +
        "claimed_at=null,last_error_code=null where order_id=? and status='SENDING'",id)!=1)

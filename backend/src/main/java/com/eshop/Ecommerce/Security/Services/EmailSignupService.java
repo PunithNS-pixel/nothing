@@ -46,9 +46,10 @@ public class EmailSignupService {
     private void sendCode(String to,String code) {
         JavaMailSender sender=senders.getIfAvailable();
         if((mailHost==null||mailHost.isBlank())&&!"gmail-api".equalsIgnoreCase(mailProvider)
+           &&!"resend".equalsIgnoreCase(mailProvider)
            ||sender==null||from==null||from.isBlank())
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                "Signup requires configured SMTP or Gmail API delivery and EMAIL_FROM.");
+                "Signup requires configured SMTP, Gmail API or Resend delivery and EMAIL_FROM.");
         SimpleMailMessage mail=new SimpleMailMessage();
         mail.setTo(to);mail.setFrom(from);
         mail.setSubject("NOTHING Market - verify your email address");

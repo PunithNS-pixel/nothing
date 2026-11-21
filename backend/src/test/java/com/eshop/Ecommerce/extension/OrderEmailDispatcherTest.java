@@ -32,7 +32,10 @@ class OrderEmailDispatcherTest {
   OrderEmailDispatcher d=dispatcher();
   d.deliver(42L);d.deliver(42L);
   verify(composer,times(1)).compose(42L);
-  verify(mail,times(1)).send(any(MimeMessage.class));
+  var sent=org.mockito.ArgumentCaptor.forClass(MimeMessage.class);
+  verify(mail,times(1)).send(sent.capture());
+  assertEquals("nothing-order-confirmation-42",
+    sent.getValue().getHeader("X-Nothing-Idempotency-Key",null));
   verify(jdbc,times(1)).update(contains("set status='SENT'"),eq(42L));
  }
  @Test void temporarySmtpFailureReturnsJobToPendingRetry() {
@@ -50,5 +53,7 @@ class OrderEmailDispatcherTest {
    ()->new OrderEmailDispatcher(jdbc,composer,mail,"orders@example.org",12,"","smtp"));
   assertDoesNotThrow(()->new OrderEmailDispatcher(jdbc,composer,mail,
     "orders@example.org",12,"","gmail-api"));
+  assertDoesNotThrow(()->new OrderEmailDispatcher(jdbc,composer,mail,
+    "orders@example.org",12,"","resend"));
  }
 }
