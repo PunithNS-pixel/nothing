@@ -117,6 +117,18 @@ public class RetailCatalogSeed {
      case "Portable SSD 512GB" -> "https://images.unsplash.com/photo-1756142752564-586c77618757?auto=format&fit=crop&w=800&q=82";
      case "Polarized Sunglasses" -> "https://images.unsplash.com/photo-1711223499758-8aef018b720e?auto=format&fit=crop&w=800&q=82";
      case "Unisex Hoodie" -> "https://images.unsplash.com/photo-1742911072884-3cbf51117247?auto=format&fit=crop&w=800&q=82";
+     case "1080p HD Webcam" -> "https://images.unsplash.com/photo-1762681290673-ba1ad4ea0875?auto=format&fit=crop&w=800&q=82";
+     case "Wireless Charging Pad" -> "https://images.unsplash.com/photo-1750332191594-d5387a69f7c8?auto=format&fit=crop&w=800&q=82";
+     case "Digital Kitchen Scale" -> "https://images.unsplash.com/photo-1772683709393-f0cf8c226872?auto=format&fit=crop&w=800&q=82";
+     case "Cotton Cushion Cover Pair" -> "https://images.unsplash.com/photo-1775029676739-86443af4010d?auto=format&fit=crop&w=800&q=82";
+     case "Cotton Crew Socks 5 Pack" -> "https://images.unsplash.com/photo-1641399032315-39f5f79f436b?auto=format&fit=crop&w=800&q=82";
+     case "Organic Green Tea 100g" -> "https://images.unsplash.com/photo-1767840272016-36dc5dd51f79?auto=format&fit=crop&w=800&q=82";
+     case "Cold Pressed Groundnut Oil 1L" -> "https://images.unsplash.com/photo-1757801333068-d52a3e448cde?auto=format&fit=crop&w=800&q=82";
+     case "Wholegrain Oats 1kg" -> "https://images.unsplash.com/photo-1510776478953-fa4dc5de04ca?auto=format&fit=crop&w=800&q=82";
+     case "Hand Cream Shea Butter 75ml" -> "https://images.unsplash.com/photo-1778854290397-d6ba28d0cdf6?auto=format&fit=crop&w=800&q=82";
+     case "Gentle Shampoo 300ml" -> "https://images.unsplash.com/photo-1762827990160-9f2d35fb0fd5?auto=format&fit=crop&w=800&q=82";
+     case "Lip Balm Variety Pack" -> "https://images.unsplash.com/photo-1692873634623-142b360483d6?auto=format&fit=crop&w=800&q=82";
+     case "Daily Body Lotion 400ml" -> "https://images.unsplash.com/photo-1771481103879-dd0e658fd7be?auto=format&fit=crop&w=800&q=82";
      default -> null;
    };
  }
