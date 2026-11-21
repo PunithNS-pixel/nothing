@@ -851,6 +851,154 @@ async function checkout(){
   }
  }catch(e){notify('Checkout failed while '+checkoutStage+': '+e.message,true);console.error('Checkout stage:',checkoutStage,'Error:',e)}
 }
+
+async function saveToWishlist(productId){
+ if(!user && !await login('LOGIN'))return;
+ try{
+  await request('/api/customer/wishlist/'+encodeURIComponent(productId),{method:'PUT'});
+  notify('Product saved to your account wishlist.');
+ }catch(e){notify('Could not save product: '+e.message,true)}
+}
+async function showWishlist(){
+ if(!user && !await login('LOGIN'))return;
+ try{
+  const list=await request('/api/customer/wishlist');
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const title=document.createElement('h2');title.textContent='YOUR SAVED OBJECTS';root.append(title);
+  if(!list.length){const p=document.createElement('p');p.textContent='No saved products yet.';root.append(p)}
+  for(const item of list){
+   const row=document.createElement('div');row.className='review-card';
+   const name=document.createElement('strong');name.textContent=item.name+' · '+money(item.price);
+   const actions=document.createElement('div');actions.className='actions';
+   const view=document.createElement('button');view.type='button';view.textContent='VIEW ↗';
+   view.onclick=()=>{d.close();showQuickView(item.productId)};
+   const remove=document.createElement('button');remove.type='button';remove.textContent='REMOVE';
+   remove.onclick=async()=>{try{
+    await request('/api/customer/wishlist/'+encodeURIComponent(item.productId),{method:'DELETE'});
+    d.close();showWishlist();
+   }catch(e){notify('Remove failed: '+e.message,true)}};
+   actions.append(view,remove);row.append(name,actions);root.append(row);
+  }
+  const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';
+  close.onclick=()=>d.close();root.append(close);d.showModal();
+ }catch(e){notify('Wishlist unavailable: '+e.message,true)}
+}
+async function showReviews(productId){
+ try{
+  const reviews=await request('/api/store/products/'+encodeURIComponent(productId)+'/reviews');
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent='CUSTOMER FEEDBACK';root.append(heading);
+  if(!reviews.length){const p=document.createElement('p');p.textContent='No purchased-product feedback yet.';root.append(p)}
+  for(const item of reviews){
+   const section=document.createElement('section');section.className='review-card';
+   const author=document.createElement('strong');author.textContent='★ '+item.rating+'/5 · '+item.author;
+   const note=document.createElement('p');note.textContent=item.comment;section.append(author,note);root.append(section);
+  }
+  const actions=document.createElement('div');actions.className='actions';
+  const write=document.createElement('button');write.type='button';write.textContent='WRITE A REVIEW ↗';
+  write.onclick=()=>{d.close();writeReview(productId)};
+  const back=document.createElement('button');back.type='button';back.textContent='BACK TO PRODUCT';
+  back.onclick=()=>{d.close();showQuickView(productId)};
+  actions.append(write,back);root.append(actions);d.showModal();
+ }catch(e){notify('Reviews unavailable: '+e.message,true)}
+}
+async function writeReview(productId){
+ if(!user && !await login('LOGIN'))return;
+ const data=await showDialog('REVIEW YOUR PURCHASE',[
+  {name:'rating',label:'RATING (1 TO 5)',type:'number',placeholder:'5'},
+  {name:'comment',label:'YOUR FEEDBACK (MAX 1000 CHARACTERS)',placeholder:'Describe your experience'}
+ ],'PUBLISH REVIEW');
+ if(!data)return;
+ const rating=Number(data.rating);
+ if(!Number.isInteger(rating)||rating<1||rating>5||!data.comment.trim()||data.comment.length>1000){
+  notify('Enter a 1–5 rating and feedback up to 1000 characters.',true);return;
+ }
+ try{
+  await request('/api/customer/products/'+encodeURIComponent(productId)+'/reviews',
+   {method:'POST',body:JSON.stringify({rating,comment:data.comment})});
+  notify('Your purchase review was saved.');showReviews(productId);
+ }catch(e){notify('Review not saved: '+e.message,true)}
+}
+async function showRecommendations(productId){
+ try{
+  const items=await request('/api/store/recommendations?productId='+encodeURIComponent(productId));
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent='MORE LIKE THIS';root.append(heading);
+  if(!items.length){const p=document.createElement('p');p.textContent='No similar in-stock products available.';root.append(p)}
+  for(const item of items){
+   const b=document.createElement('button');b.type='button';b.className='address-option';
+   b.textContent=item.name+' · '+(item.brand||'NOTHING SELECT')+' · '+money(item.price);
+   b.onclick=()=>{d.close();showQuickView(item.productId)};root.append(b);
+  }
+  const close=document.createElement('button');close.type='button';close.className='outline-button';close.textContent='CLOSE';
+  close.onclick=()=>d.close();root.append(close);d.showModal();
+ }catch(e){notify('Recommendations unavailable: '+e.message,true)}
+}
+async function newAfterSaleRequest(orderId,type){
+ if(!user && !await login('LOGIN'))return;
+ const fields=[{name:'reason',label:'REASON (AT LEAST 5 CHARACTERS)',placeholder:'Tell the store why you are requesting this'}];
+ if(type==='RESCHEDULE')fields.push({name:'requestedDate',label:'PREFERRED DELIVERY DATE',type:'date'});
+ const data=await showDialog(type==='RETURN'?'REQUEST A RETURN':'REQUEST A NEW DELIVERY DATE',fields,'SUBMIT REQUEST');
+ if(!data)return;
+ try{
+  const body={type,reason:data.reason};
+  if(type==='RESCHEDULE')body.requestedDate=data.requestedDate;
+  const result=await request('/api/customer/orders/'+encodeURIComponent(orderId)+'/requests',
+   {method:'POST',body:JSON.stringify(body)});
+  notify('Request #'+result.id+' submitted for store review.');await showMyRequests();
+ }catch(e){notify('Request not submitted: '+e.message,true)}
+}
+async function showMyRequests(){
+ if(!user && !await login('LOGIN'))return;
+ try{
+  const items=await request('/api/customer/order-requests');
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent='AFTER-SALES REQUESTS';root.append(heading);
+  if(!items.length){const empty=document.createElement('p');empty.textContent='No return or rescheduling requests.';root.append(empty)}
+  for(const item of items){
+   const block=document.createElement('section');block.className='review-card';
+   const title=document.createElement('strong');
+   title.textContent='ORDER #'+item.orderId+' · '+item.type+' · '+item.status;
+   const note=document.createElement('p');
+   note.textContent=item.reason+(item.requestedDate?' · Preferred: '+item.requestedDate:'')+
+    (item.reviewNote?' · Store note: '+item.reviewNote:'');
+   block.append(title,note);root.append(block);
+  }
+  const back=document.createElement('button');back.className='outline-button';back.textContent='BACK TO ORDERS';
+  back.onclick=()=>{d.close();showOrders()};root.append(back);d.showModal();
+ }catch(e){notify('Requests unavailable: '+e.message,true)}
+}
+async function reviewAfterSaleRequests(){
+ try{
+  const items=await request('/api/admin/order-requests');
+  const d=$('modal'),root=$('modalContent');if(d.open)d.close();root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent='RETURN / DATE APPROVAL QUEUE';root.append(heading);
+  const disclaimer=document.createElement('p');
+  disclaimer.textContent='Approval does not issue refunds, restock products or book a courier. Finish those operations with verified fulfillment.';
+  root.append(disclaimer);
+  if(!items.length){const p=document.createElement('p');p.textContent='No pending requests.';root.append(p)}
+  for(const item of items){
+   const block=document.createElement('section');block.className='review-card';
+   const h=document.createElement('strong');h.textContent='ORDER #'+item.orderId+' · '+item.type;
+   const desc=document.createElement('p');desc.textContent=item.reason+
+    (item.requestedDate?' · Requested date: '+item.requestedDate:'');
+   const actions=document.createElement('div');actions.className='actions';
+   for(const decision of ['APPROVED','REJECTED']){
+    const b=document.createElement('button');b.type='button';b.textContent=decision;
+    b.onclick=async()=>{try{
+      await request('/api/admin/order-requests/'+encodeURIComponent(item.id)+'/review',
+       {method:'PUT',body:JSON.stringify({decision,note:'Reviewed by store administrator'})});
+      notify('Request #'+item.id+' marked '+decision.toLowerCase());d.close();reviewAfterSaleRequests();
+     }catch(e){notify('Could not review request: '+e.message,true)}};
+    actions.append(b);
+   }
+   block.append(h,desc,actions);root.append(block);
+  }
+  const close=document.createElement('button');close.type='button';close.className='outline-button';close.textContent='CLOSE';
+  close.onclick=()=>d.close();root.append(close);d.showModal();
+ }catch(e){notify('Approval queue unavailable: '+e.message,true)}
+}
+
 function bind(){
  $('year').textContent=new Date().getFullYear();
  $('cartBtn').onclick=openCart;$('closeCart').onclick=closeCart;$('overlay').onclick=closeCart;
