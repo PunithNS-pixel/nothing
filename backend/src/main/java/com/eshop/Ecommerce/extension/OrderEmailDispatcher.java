@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * PostgreSQL is the durable source of truth for sending confirmation mail.
  * Atomic row claims make concurrent Spring replicas and duplicate Rabbit events safe.
- * SMTP is outside the DB transaction; exact-once delivery cannot be guaranteed if
+ * Email-provider delivery is outside the DB transaction; exact-once delivery cannot be guaranteed if
  * the process crashes after SMTP accepts the message but before marking SENT.
  */
 @Component
@@ -33,11 +33,13 @@ public class OrderEmailDispatcher {
  public OrderEmailDispatcher(JdbcTemplate jdbc,OrderConfirmationComposer composer,JavaMailSender mail,
    @Value("${nothing.mail.from:}") String from,
    @Value("${NOTIFICATION_BATCH_SIZE:12}") int batchLimit,
-   @Value("${SMTP_HOST:}") String smtpHost){
+   @Value("${SMTP_HOST:}") String smtpHost,
+   @Value("${nothing.mail.provider:smtp}") String provider){
   this.jdbc=jdbc;this.composer=composer;this.mail=mail;this.from=from;
   this.batchLimit=Math.max(1,Math.min(batchLimit,50));
-  if(from==null||from.isBlank()||smtpHost==null||smtpHost.isBlank())
-   throw new IllegalStateException("MAIL_NOTIFICATIONS_ENABLED requires SMTP_HOST and EMAIL_FROM");
+  if(from==null||from.isBlank()||(!"gmail-api".equalsIgnoreCase(provider)
+      && (smtpHost==null||smtpHost.isBlank())))
+   throw new IllegalStateException("Email notifications require EMAIL_FROM and a configured SMTP or Gmail API provider");
  }
 
  /** A duplicate / concurrent attempt is a no-op, not a second email. */
@@ -63,7 +65,7 @@ public class OrderEmailDispatcher {
    if(jdbc.update("update order_confirmation_emails set status='SENT',sent_at=now()," +
        "claimed_at=null,last_error_code=null where order_id=? and status='SENDING'",id)!=1)
      throw new IllegalStateException("Email was sent but delivery state could not be recorded");
-   log.info("Order {} confirmation accepted by SMTP",id);
+   log.info("Order {} confirmation accepted by outgoing mail provider",id);
   }catch(Exception ex){
    // Avoid logging SMTP credentials, email addresses or provider responses.
    jdbc.update("update order_confirmation_emails set status='PENDING',claimed_at=null," +

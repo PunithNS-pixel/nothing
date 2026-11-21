@@ -16,7 +16,7 @@ class OrderEmailDispatcherTest {
  private final OrderConfirmationComposer composer=mock(OrderConfirmationComposer.class);
  private final JavaMailSender mail=mock(JavaMailSender.class);
  private OrderEmailDispatcher dispatcher(){
-  return new OrderEmailDispatcher(jdbc,composer,mail,"orders@example.org",12,"smtp.example.org");
+  return new OrderEmailDispatcher(jdbc,composer,mail,"orders@example.org",12,"smtp.example.org","smtp");
  }
  private void mockReceipt() {
   when(composer.compose(42L)).thenReturn(new OrderConfirmationComposer.Confirmation(
@@ -45,8 +45,10 @@ class OrderEmailDispatcherTest {
  }
  @Test void disabledSmtpCannotStartSender(){
   assertThrows(IllegalStateException.class,
-   ()->new OrderEmailDispatcher(jdbc,composer,mail,"",12,"smtp.example.org"));
+   ()->new OrderEmailDispatcher(jdbc,composer,mail,"",12,"smtp.example.org","smtp"));
   assertThrows(IllegalStateException.class,
-   ()->new OrderEmailDispatcher(jdbc,composer,mail,"orders@example.org",12,""));
+   ()->new OrderEmailDispatcher(jdbc,composer,mail,"orders@example.org",12,"","smtp"));
+  assertDoesNotThrow(()->new OrderEmailDispatcher(jdbc,composer,mail,
+    "orders@example.org",12,"","gmail-api"));
  }
 }

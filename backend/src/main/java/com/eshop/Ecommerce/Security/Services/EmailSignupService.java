@@ -22,7 +22,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
- * Signup verification is fail-closed. No SMTP means no new customer accounts.
+ * Signup verification is fail-closed. No configured mail provider means no new customer accounts.
  * No OTPs or plaintext passwords are retained or printed to logs.
  */
 @Service
@@ -34,6 +34,7 @@ public class EmailSignupService {
     private final ObjectProvider<JavaMailSender> senders;
     private final SecureRandom random=new SecureRandom();
     @Value("${spring.mail.host:}") private String mailHost;
+    @Value("${nothing.mail.provider:smtp}") private String mailProvider;
     @Value("${nothing.mail.from:}") private String from;
 
     public EmailSignupService(PendingSignupRepository pending,UserRepository users,
@@ -44,9 +45,10 @@ public class EmailSignupService {
 
     private void sendCode(String to,String code) {
         JavaMailSender sender=senders.getIfAvailable();
-        if(mailHost==null||mailHost.isBlank()||sender==null||from==null||from.isBlank())
+        if((mailHost==null||mailHost.isBlank())&&!"gmail-api".equalsIgnoreCase(mailProvider)
+           ||sender==null||from==null||from.isBlank())
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                "Signup requires configured SMTP delivery. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD and EMAIL_FROM.");
+                "Signup requires configured SMTP or Gmail API delivery and EMAIL_FROM.");
         SimpleMailMessage mail=new SimpleMailMessage();
         mail.setTo(to);mail.setFrom(from);
         mail.setSubject("NOTHING Market - verify your email address");
@@ -55,7 +57,7 @@ public class EmailSignupService {
         try{sender.send(mail);}
         catch(org.springframework.mail.MailException ex){
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                "Verification email could not be delivered. Check SMTP configuration.");
+                "Verification email could not be delivered. Check your email provider configuration.");
         }
     }
     private String code(){return String.format(Locale.ROOT,"%06d",random.nextInt(1_000_000));}
