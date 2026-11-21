@@ -49,7 +49,7 @@ The automated script scripts/verify-round-robin.sh checks three unique upstream 
 
 1. Provision real Aiven PostgreSQL/Kafka/OpenSearch; select genuinely replicated multi-node plans for your availability target.
 2. Use a **controlled single-writer schema migration process** before running more than one app. The earlier project uses Hibernate ddl-auto=update for most JPA entities; this must be replaced by audited migrations for production. The HA cloud profile uses Hibernate validate and disables demo seeding, so a fresh cloud database is **not automatically initialized**.
-3. Copy backend/.env.aiven.ha.example to a private backend/.env.aiven and fill Aiven credentials, a random Base64 32+-byte JWT key, public HTTPS FRONTEND_URL, PEM TLS_CERT_PATH/TLS_KEY_PATH on the deployment host, RabbitMQ/Grafana credentials, SMTP and payment URLs. Never publish the private files or credentials.
+3. Copy backend/.env.aiven.ha.example to a private backend/.env.aiven and fill Aiven credentials, a random Base64 32+-byte JWT key, public HTTPS FRONTEND_URL, PEM TLS_CERT_PATH/TLS_KEY_PATH and the Aiven Postgres CA at AIVEN_PG_CA_PATH on the deployment host, RabbitMQ/Grafana credentials, SMTP and payment URLs. Never publish the private files or credentials.
 4. Run preflight, then deploy (staging only until all checks pass):
 
 ```powershell
@@ -59,7 +59,7 @@ docker compose -f backend/compose.aiven.ha.yml --env-file backend/.env.aiven up 
 docker compose -f backend/compose.aiven.ha.yml --env-file backend/.env.aiven ps
 ```
 
-The public ports are 80 and 443 on Nginx. Application ports 8080 and 8081 and Actuator metrics are **not bound** on the host. The older verify-aiven.py expects a host-mapped single app at 8090/8091, so it cannot directly verify this HA profile; use internal health checks through a secure operator connection. Use only valid trusted TLS certificates; the default placeholder URLs in examples never establish cloud readiness.
+The Aiven PostgreSQL JDBC URL must use sslmode=verify-full with sslrootcert=/etc/ssl/certs/aiven-pg-ca.pem. The CA file must be mounted from AIVEN_PG_CA_PATH, and the certificate hostname must match the Aiven host. Confirm Kafka/OpenSearch certificate chains are trusted by the Java runtime. The public ports are 80 and 443 on Nginx. Application ports 8080 and 8081 and Actuator metrics are **not bound** on the host. The older verify-aiven.py expects a host-mapped single app at 8090/8091, so it cannot directly verify this HA profile; use internal health checks through a secure operator connection. Use only valid trusted TLS certificates; the default placeholder URLs in examples never establish cloud readiness.
 
 ## Remaining production requirements
 

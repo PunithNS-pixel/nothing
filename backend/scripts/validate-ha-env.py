@@ -28,7 +28,7 @@ def main():
         url=urlparse(need("FRONTEND_URL"))
         if url.scheme!="https" or not url.hostname:
             raise RuntimeError("FRONTEND_URL must be a valid public https:// URL")
-        for key in ("TLS_CERT_PATH","TLS_KEY_PATH"):
+        for key in ("TLS_CERT_PATH","TLS_KEY_PATH","AIVEN_PG_CA_PATH"):
             if not Path(need(key)).is_file(): raise RuntimeError(key+" must point to an existing PEM file")
         if env.get("HIBERNATE_DDL_AUTO","validate").lower()!="validate":
             raise RuntimeError("Set HIBERNATE_DDL_AUTO=validate; migrate schema before deployment")

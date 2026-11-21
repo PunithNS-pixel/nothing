@@ -23,8 +23,10 @@ services:
       timeout: 4s
       retries: 5
       start_period: 80s
+    volumes:
+      - ${AIVEN_PG_CA_PATH:?Set Aiven PostgreSQL root CA PEM path}:/etc/ssl/certs/aiven-pg-ca.pem:ro
     environment:
-      DATABASE_URL: ${AIVEN_PG_JDBC_URL:?Set AIVEN_PG_JDBC_URL with sslmode=require}
+      DATABASE_URL: ${AIVEN_PG_JDBC_URL:?Set AIVEN_PG_JDBC_URL with sslmode=verify-full}
       DATABASE_USER: ${AIVEN_PG_USER:?Set AIVEN_PG_USER}
       DATABASE_PASSWORD: ${AIVEN_PG_PASSWORD:?Set AIVEN_PG_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?Set a new Base64 JWT secret}
