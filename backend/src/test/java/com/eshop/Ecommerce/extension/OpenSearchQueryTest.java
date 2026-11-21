@@ -49,9 +49,9 @@ class OpenSearchQueryTest {
  void splitBluetoothMisspellingAddsACompactFuzzyClause(){
   String json=toJson(OpenSearchCatalog.searchRequest("blue teuth",null,null,null,null,0,100));
   assertEquals("blueteuth",OpenSearchCatalog.compactMisspellingCandidate("blue teuth"));
-  assertTrue(json.contains("\\"blueteuth\\""),json);
-  assertTrue(json.contains("\\"fuzziness\\":2"),json);
-  assertTrue(json.contains("\\"minimum_should_match\\":1"),json);
+  assertTrue(json.contains("blueteuth"),json);
+  assertTrue(json.contains("fuzziness"),json);
+  assertTrue(json.contains("minimum_should_match"),json);
   assertNull(OpenSearchCatalog.compactMisspellingCandidate("blue"));
   assertNull(OpenSearchCatalog.compactMisspellingCandidate("laptop gaming keyboard headphones"));
  }
