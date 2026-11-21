@@ -63,3 +63,16 @@
 .tracking-actions .primary-choice{flex:1;min-width:135px}
 .fulfillment-row{display:block;width:100%;margin:9px 0}
 @media(max-width:640px){.tracking-order-card{padding:13px}.tracking-actions{flex-direction:column}.tracking-status{padding:12px}}
+
+/* Account saved products and secure catalog management */
+.product-info .save-button{display:inline-flex;align-items:center;justify-content:center;float:right;background:#f7ffe7;color:#253521;border:1px solid #a2bc7e;border-radius:2px;padding:7px 11px;margin:0 0 8px 8px;cursor:pointer;font-size:10px;font-weight:900;letter-spacing:.06em}
+.product-info .save-button:hover,.product-info .save-button:focus-visible{background:#d9fa9f;border-color:#426e31}
+#modalContent .review-card{border:1px solid #d7dfd1;padding:15px;margin:12px 0;background:#fbfdf8}
+#modalContent .review-card strong{display:block;font-size:12px;font-weight:900;letter-spacing:.02em}
+#modalContent .review-card p{line-height:1.55;font-size:12px;overflow-wrap:anywhere}
+#modalContent .review-card .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+#modalContent .review-card button{cursor:pointer;min-height:38px;padding:8px 12px;font-size:10px;font-weight:900}
+#modalContent>.address-option{display:block;width:100%;margin:9px 0;cursor:pointer}
+#modalContent>.primary-choice{margin:12px 0}
+.modal{max-height:90vh;overflow-y:auto}
+@media(max-width:650px){.product-info .save-button{font-size:9px;padding:6px 8px}#modalContent .review-card{padding:12px}}
