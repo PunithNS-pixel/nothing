@@ -34,7 +34,18 @@ const bindImageFallbacks=scope=>{
  });
 };
 
-const notify=(msg,bad=false)=>{const el=$('toast');el.textContent=msg;el.style.background=bad?'#8b2424':'#172339';el.classList.add('visible');clearTimeout(notify.timer);notify.timer=setTimeout(()=>el.classList.remove('visible'),4500)};
+const notify=(msg,bad=false,action=false)=>{
+ const el=$('toast');el.replaceChildren();
+ const label=document.createElement('span');label.textContent=msg;el.append(label);
+ if(action){
+  const button=document.createElement('button');button.type='button';button.className='toast-action';
+  button.textContent='VIEW BAG ↗';button.onclick=()=>{openCart();el.classList.remove('visible')};
+  el.append(button);
+ }
+ el.style.background=bad?'#922f2f':'#172b19';
+ el.classList.add('visible');clearTimeout(notify.timer);
+ notify.timer=setTimeout(()=>el.classList.remove('visible'),5000);
+};
 async function request(path,options={}){
  const r=await fetch(API+path,{...options,credentials:'include',headers:{'Content-Type':'application/json',...(options.headers||{})}});
  const raw=await r.text();let data;try{data=JSON.parse(raw)}catch{data=raw}
@@ -49,7 +60,7 @@ function updateCart(){
  $('cartCount').textContent=count;
  $('cartTotal').textContent=money(items.reduce((n,[id,q])=>n+itemPrice(productById(id))*q,0));
  $('cartItems').innerHTML=items.length?items.map(([id,q])=>{
-   const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+escape(id)+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
+   const p=productById(id);const thumb=p.image&&/^https:\/\//.test(p.image)?'<img data-product-image="'+escape(id)+'" loading="lazy" src="'+escape(p.image)+'" alt="'+escape(p.name)+'">':chooseIcon(p);return '<div class="cart-row"><div class="cart-icon">'+thumb+'</div><div><strong>'+escape(p.name)+'</strong><small>'+escape(p.variantLabel?('SIZE '+p.variantLabel+' · '):'')+escape(p.category)+' · '+escape(p.city||'India')+'</small><div class="qty"><button type="button" data-qty="'+id+'" data-delta="-1" aria-label="Decrease quantity">−</button><b>'+q+'</b><button type="button" data-qty="'+id+'" data-delta="1" aria-label="Increase quantity">+</button></div></div><div class="cart-price">'+money(itemPrice(p)*q)+'</div></div>';
  }).join(''):'<div class="empty-state"><strong>YOUR BAG IS EMPTY.</strong><p>Some good stuff is waiting for you.</p></div>';
  $('cartSyncStatus').textContent=user?'Saved to your PostgreSQL cart':'Guest bag saved on this device';
  $('checkoutBtn').disabled=!count||cartBusy;
@@ -72,46 +83,116 @@ async function changeQty(id,delta){
  const before={...cart};
  if(next)cart[id]=next;else delete cart[id];
  updateCart();
- try{await persistCart()}catch{cart=before;updateCart()}
+ try{
+  await persistCart();
+  if(delta>0&&next>0) notify('Added '+p.name+(p.variantLabel?' / '+p.variantLabel:'')+' to your bag',false,true);
+  if(delta<0) notify(next===0?'Removed item from your bag':'Bag updated');
+ }catch{cart=before;updateCart()}
 }
 async function addItem(id){await changeQty(id,1)}
 function openCart(){$('overlay').hidden=false;$('cartDrawer').classList.add('open');$('cartDrawer').setAttribute('aria-hidden','false')}
 function closeCart(){$('overlay').hidden=true;$('cartDrawer').classList.remove('open');$('cartDrawer').setAttribute('aria-hidden','true')}
+function productVariants(p){
+ if(!p.variantGroup)return [p];
+ const options=catalog.filter(x=>x.variantGroup===p.variantGroup);
+ const rank=x=>x.sizeType==='SHOE'?Number(String(x.variantLabel).replace('UK ','')) : ['XS','S','M','L','XL','XXL'].indexOf(x.variantLabel);
+ return options.sort((a,b)=>rank(a)-rank(b));
+}
 function showQuickView(id){
  const p=productById(id);if(!p)return;
+ const variants=productVariants(p);let selected=variants.find(v=>v.stock>0)||variants[0];
  const dialog=$('modal'),root=$('modalContent');root.replaceChildren();
  const title=document.createElement('h2');title.textContent='THE DETAIL / '+(p.brand||'NOTHING SELECT');root.append(title);
  const panel=document.createElement('div');panel.className='quick-panel';
- const picture=document.createElement('div');
+ const picture=document.createElement('div');picture.className='quick-photo';
  if(p.image&&/^https:\/\//.test(p.image)){
-  const img=document.createElement('img');img.src=p.image;img.alt='Illustrative product photo for '+p.name;
+  const img=document.createElement('img');img.src=p.image;img.alt='Illustrative product image: '+(p.variantGroup||p.name);
   img.onerror=()=>{picture.textContent=chooseIcon(p)};picture.append(img);
  }else picture.textContent=chooseIcon(p);
- const info=document.createElement('div');
- const heading=document.createElement('h3');heading.textContent=p.name;
+ const info=document.createElement('div');info.className='quick-info';
+ const heading=document.createElement('h3');heading.textContent=p.variantGroup||p.name;
  const desc=document.createElement('p');desc.textContent=p.description;
- const stock=document.createElement('p');stock.textContent=p.category+' · '+p.city+' · '+p.stock+' available';
- const price=document.createElement('strong');price.className='quick-price';price.textContent=money(itemPrice(p));
- const add=document.createElement('button');add.className='primary-choice';add.textContent=p.stock>0?'ADD TO BAG ↗':'OUT OF STOCK';add.disabled=p.stock<=0;
- add.onclick=async()=>{dialog.close();await addItem(p.productId);openCart()};
+ const stock=document.createElement('p');stock.className='quick-stock';
+ const price=document.createElement('strong');price.className='quick-price';
+ const optionsWrap=document.createElement('div');optionsWrap.className='size-picker';
+ const sizeTitle=document.createElement('div');sizeTitle.className='size-picker-head';
+ const sizeGuide=document.createElement('p');sizeGuide.className='size-guide';
+ const optionButtons=document.createElement('div');optionButtons.className='size-options';
+ const add=document.createElement('button');add.className='primary-choice';
  const close=document.createElement('button');close.className='outline-button';close.textContent='CLOSE';close.onclick=()=>dialog.close();
- info.append(heading,desc,stock,price,add,close);panel.append(picture,info);root.append(panel);dialog.showModal();
+ function renderSelection(){
+  price.textContent=money(itemPrice(selected));
+  stock.textContent=selected.city+' · '+selected.stock+' in stock'+(selected.footLengthCm?' · approx. foot length '+selected.footLengthCm+' cm':'');
+  add.textContent=selected.stock>0?'ADD '+selected.variantLabel?.toUpperCase?.()+' TO BAG ↗':'SOLD OUT';
+  if(!selected.variantLabel)add.textContent=selected.stock>0?'ADD TO BAG ↗':'SOLD OUT';
+  add.disabled=selected.stock<=0;
+  for(const b of optionButtons.querySelectorAll('button')){
+   const v=variants.find(x=>String(x.productId)===b.dataset.variant);
+   b.classList.toggle('selected',v===selected);
+   b.setAttribute('aria-pressed',String(v===selected));
+  }
+ }
+ if(variants.length>1){
+  sizeTitle.textContent=selected.sizeType==='SHOE'?'CHOOSE SHOE SIZE (UK)':'CHOOSE SIZE';
+  for(const v of variants){
+   const b=document.createElement('button');b.type='button';
+   b.textContent=v.variantLabel+(v.footLengthCm?' · '+v.footLengthCm+' cm':'');
+   b.className='size-option';b.dataset.variant=String(v.productId);
+   b.disabled=v.stock<1;b.onclick=()=>{selected=v;renderSelection()};optionButtons.append(b);
+  }
+  sizeGuide.textContent=selected.sizeType==='SHOE'?
+   'Illustrative UK sizing; lengths are approximate foot measurements. Check manufacturer measurements before buying.' :
+   'Demo apparel sizes. Actual chest, shoulder and garment measurements require supplier data.';
+  optionsWrap.append(sizeTitle,optionButtons,sizeGuide);
+ }
+ if(p.category==='Toys & Games'){
+  const age=document.createElement('p');age.className='size-guide';
+  age.textContent='Age/safety warning: manufacturer rating not verified. Adults should check packaging before purchase.';
+  optionsWrap.append(age);
+ }
+ const details=document.createElement('p');details.className='size-guide';
+ details.textContent='Item stock and price are verified by Spring Boot at checkout. Photos are representative.';
+ add.onclick=async()=>{
+  const picked=selected;
+  dialog.close();
+  await addItem(picked.productId);
+ };
+ info.append(heading,desc,optionsWrap,stock,price,details,add,close);panel.append(picture,info);root.append(panel);
+ renderSelection();dialog.showModal();
 }
 function drawProducts(){
- $('resultCount').textContent=visible.length+' OBJECT'+(visible.length===1?'':'S')+' IN THIS EDIT';
- $('emptyState').hidden=visible.length>0;
- $('productGrid').innerHTML=visible.map(p=>{
-  const stock=Number(p.stock),safeId=Number(p.productId);
+ // Each variant has its own stock-bearing Product ID, but shoppers see one card per design.
+ const byGroup=new Map();
+ for(const p of visible){const key=p.variantGroup||String(p.productId);
+  if(!byGroup.has(key))byGroup.set(key,p);
+  else if(Number(byGroup.get(key).stock)<=0&&Number(p.stock)>0)byGroup.set(key,p);
+ }
+ const shown=[...byGroup.values()];
+ $('resultCount').textContent=shown.length+' ITEM'+(shown.length===1?'':'S')+' IN THIS EDIT';
+ $('emptyState').hidden=shown.length>0;
+ $('productGrid').innerHTML=shown.map(p=>{
+  const variants=productVariants(p),sized=variants.length>1,stock=variants.reduce((n,v)=>n+Number(v.stock||0),0),safeId=Number(p.productId);
   let image=productArtwork(p);
-  if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" decoding="async" src="'+escape(p.image)+'" alt="'+escape(p.name)+' — illustrative photography">';
-  return '<article class="product-card"><div class="product-visual" style="--tone:'+(tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'● IN STOCK':'SOLD OUT')+'</span>'+image+'<button type="button" class="quick-view" data-quick="'+safeId+'" aria-label="Quick view '+escape(p.name)+'">QUICK VIEW ↗</button></div><div class="product-info"><div class="brand-tag">'+escape(p.brand||'NOTHING SELECT')+'</div><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+(stock<1?'SOLD OUT':'ADD TO BAG +')+'</button></div></div></article>';
+  if(p.image&&/^https:\/\//.test(p.image))image='<img data-product-image="'+safeId+'" loading="lazy" decoding="async" src="'+escape(p.image)+'" alt="'+escape(p.variantGroup||p.name)+' — illustrative photography">';
+  const action=stock<1?'SOLD OUT':sized?'CHOOSE SIZE ↗':'ADD TO BAG +';
+  return '<article class="product-card"><div class="product-visual" style="--tone:'+(tones[p.category]||'#e7f0ed')+'"><span class="tag">'+(stock>0?'● IN STOCK':'SOLD OUT')+'</span>'+image+
+   '<button type="button" class="quick-view" data-quick="'+safeId+'" aria-label="Quick view '+escape(p.variantGroup||p.name)+'">QUICK VIEW ↗</button></div><div class="product-info"><div class="brand-tag">'+escape(p.brand||'NOTHING SELECT')+'</div><div class="meta"><span>'+escape(p.category)+'</span><span>⌖ '+escape(p.city||'India')+'</span></div><h3>'+escape(p.variantGroup||p.name)+'</h3><p class="description">'+escape(p.description)+'</p><div class="product-bottom"><strong class="price">'+money(itemPrice(p))+'</strong><button class="add-button" data-add="'+safeId+'" '+(stock<1?'disabled':'')+'>'+action+'</button></div></div></article>';
  }).join('');
  bindImageFallbacks($('productGrid'));
- document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add));
+ document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{
+  const p=productById(b.dataset.add);if(p&&productVariants(p).length>1)showQuickView(p.productId);
+  else addItem(b.dataset.add);
+ });
  document.querySelectorAll('[data-quick]').forEach(b=>b.onclick=()=>showQuickView(b.dataset.quick));
 }
 async function applyFilters(){
  const sequence=++searchRequestSeq;
+ if(!catalog.length){
+  $('sourceStatus').textContent='● CATALOG NOT READY';
+  $('resultCount').textContent='WAITING FOR CATALOG';
+  $('emptyState').hidden=true;
+  return;
+ }
  let products=catalog.slice();
  const city=$('cityFilter').value,range=$('priceFilter').value,sort=$('sortFilter').value,brand=$('brandFilter').value;
  const [min,max]=range?range.split('-').map(Number):[null,null];
@@ -163,14 +244,43 @@ function setupFilters(){
  const cities=[...new Set(catalog.map(p=>p.city).filter(Boolean))].sort();
  $('cityFilter').innerHTML='<option value="">All India</option>'+cities.map(c=>'<option value="'+escape(c)+'">'+escape(c)+'</option>').join('');
 }
-async function loadCatalog(){
+async function loadCatalog(attempt=0){
  try{
+  $('sourceStatus').textContent='● CONNECTING TO SPRING BOOT…';
   const data=await request('/api/store/catalog');
   if(!Array.isArray(data))throw new Error('Invalid catalog response');
   catalog=data.filter(p=>p&&p.productId!=null).map(p=>({...p,price:Number(p.price),stock:Number(p.stock)}));
-  if(!catalog.length){$('productGrid').innerHTML='<div class="loading-card">No products found. Enable SEED_RETAIL_CATALOG for the demo or add products through the API.</div>';return}
-  setupFilters();if($('heroProductCount'))$('heroProductCount').textContent=catalog.length+'+';await applyFilters();updateCart();
- }catch(e){$('productGrid').innerHTML='<div class="loading-card">Unable to connect to the retail API on '+escape(API)+'. '+escape(e.message)+'</div>';$('sourceStatus').textContent='● BACKEND OFFLINE';notify('Backend connection failed. Check API port and CORS.',true)}
+  if(!catalog.length){
+   // An empty 200 response during Java startup must not look like a valid 0-result search.
+   if(attempt<6){
+    $('productGrid').innerHTML='<div class="loading-card">Spring Boot is starting and loading demo products… (retry '+(attempt+1)+'/6)</div>';
+    $('sourceStatus').textContent='● WAITING FOR CATALOG SEED';
+    await new Promise(resolve=>setTimeout(resolve,1800));
+    return loadCatalog(attempt+1);
+   }
+   $('sourceStatus').textContent='● CATALOG EMPTY · NEEDS ATTENTION';
+   $('resultCount').textContent='NO PRODUCT RECORDS RETURNED';
+   $('emptyState').hidden=true;
+   $('productGrid').innerHTML='<div class="loading-card"><strong>THE CATALOG IS NOT READY.</strong><p>The API returned zero products. This is a database/seed issue, not a search filter. From the project root run: <code>bash scripts/repair-marketplace.sh</code></p><button type="button" id="retryCatalog" class="outline-button">RETRY CATALOG ↻</button></div>';
+   $('retryCatalog').onclick=()=>loadCatalog(0);
+   return;
+  }
+  setupFilters();
+  if($('heroProductCount'))$('heroProductCount').textContent=catalog.length+'+';
+  await applyFilters();updateCart();
+ }catch(e){
+  if(attempt<4){
+   $('sourceStatus').textContent='● WAITING FOR API…';
+   $('productGrid').innerHTML='<div class="loading-card">Spring Boot API initializing… retry '+(attempt+1)+'/4</div>';
+   await new Promise(resolve=>setTimeout(resolve,1800));
+   return loadCatalog(attempt+1);
+  }
+  $('sourceStatus').textContent='● BACKEND UNAVAILABLE';
+  $('emptyState').hidden=true;
+  $('productGrid').innerHTML='<div class="loading-card"><strong>BACKEND CONNECTION FAILED.</strong><p>'+escape(e.message)+'</p><button id="retryCatalog" type="button" class="outline-button">TRY AGAIN ↻</button></div>';
+  $('retryCatalog').onclick=()=>loadCatalog(0);
+  notify('Cannot load Spring Boot catalog. Check Docker logs.',true);
+ }
 }
 async function loadServerCart(){
  if(!user){cart=readGuest();updateCart();return}
@@ -411,6 +521,28 @@ async function resumeStripeCheckout(){
   }catch(e){notify('Payment status needs verification: '+e.message,true)}
  }
 }
+async function selectDeliveryAddress(addresses){
+ if(!Array.isArray(addresses)||!addresses.length)return null;
+ return new Promise(resolve=>{
+  const d=$('modal'),root=$('modalContent');root.replaceChildren();
+  const heading=document.createElement('h2');heading.textContent='WHERE SHOULD IT GO?';root.append(heading);
+  const intro=document.createElement('p');intro.textContent='Choose a saved delivery address or add another one. Your selected address is verified by Spring Boot.';root.append(intro);
+  const list=document.createElement('div');list.className='address-choices';root.append(list);
+  let finished=false;
+  const done=value=>{if(finished)return;finished=true;d.close();resolve(value)};
+  for(const a of addresses){
+   const b=document.createElement('button');b.type='button';b.className='address-option';
+   b.textContent=[a.buildingName,a.street,a.city,a.state,a.pincode].filter(Boolean).join(' · ');
+   b.onclick=()=>done(a);list.append(b);
+  }
+  const add=document.createElement('button');add.type='button';add.className='primary-choice';
+  add.textContent='+ ADD A NEW ADDRESS';add.onclick=()=>done(null);root.append(add);
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='outline-button';
+  cancel.textContent='CANCEL CHECKOUT';cancel.onclick=()=>done(false);root.append(cancel);
+  d.oncancel=e=>{e.preventDefault();done(false)};d.showModal();
+ });
+}
+
 async function checkout(){
  let checkoutStage='checking account';
  if(cartBusy)return;
@@ -427,7 +559,8 @@ async function checkout(){
   await persistCart();
   checkoutStage='loading delivery addresses';
   let addresses=await request('/api/users/addresses');
-  let address=Array.isArray(addresses)&&addresses.length?addresses[0]:null;
+  let address=await selectDeliveryAddress(addresses);
+  if(address===false)return;
   if(!address){
    const fields=[
     {name:'buildingName',label:'BUILDING / HOUSE',placeholder:'House 123',minLength:5},
@@ -439,6 +572,7 @@ async function checkout(){
    ];
    const data=await showDialog('DELIVERY ADDRESS',fields,'SAVE ADDRESS');
    if(!data)return;
+   if(!/^[1-9][0-9]{5}$/.test(data.pincode))throw new Error('Enter a valid six-digit Indian PIN code');
    checkoutStage='saving delivery address';
    address=await request('/api/addresses',{method:'POST',body:JSON.stringify(data)});
   }
