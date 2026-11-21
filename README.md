@@ -6,6 +6,41 @@ This branch is a **multicategory e-commerce demonstration** with a redesigned bo
 
 Read [Marketplace Setup](docs/README_MARKETPLACE.md), [Frontend Guide](nothing-coffee/README.md), and [Photo Credits](nothing-coffee/PHOTO_CREDITS.md).
 
+## Marketplace recovery, size-specific SKUs and buying UX (November 21, 2026)
+
+If the website shows **0 OBJECTS / NOTHING MATCHES** with only an **ALL** category chip, the local Spring Boot API may have returned **zero products** before demo seeding completed, or you may be running an old Compose image. That is **not** evidence that OpenSearch is returning no matches. Check the authoritative catalog first:
+
+```bash
+curl -fsS http://localhost:8000/api/store/catalog | python3 -c 'import json,sys; print(len(json.load(sys.stdin)), "database products")'
+```
+
+A fresh demo dataset contains **102 base items plus additional fashion size SKUs**. The frontend now retries zero catalog responses, reports database/seed failures explicitly, and has a retry control. To repair a local demo **without deleting accounts or orders**:
+
+```bash
+git fetch origin
+git switch feat/nothing-marketplace-springboot
+git pull --ff-only origin feat/nothing-marketplace-springboot
+# If using a fresh clone, configure backend/.env first.
+bash scripts/repair-marketplace.sh
+bash scripts/smoke-marketplace.sh
+```
+
+The repair script safely recreates the Spring Boot and Nginx containers and verifies 100+ products, seven categories, 20+ brand labels and 20+ size-specific stock records. Do **not** run `docker compose down -v` or erase PostgreSQL volumes to fix the catalog.
+
+### Sizes and fitting
+
+Selected demo Fashion shoes and clothes have **separate PostgreSQL Product rows per size**, not client-only options. The size picker groups them visually. Shoe UK 6–10 options show approximate foot lengths in centimetres; apparel has S/M/L/XL. Cart persistence, backend stock validation, COD orders and Stripe checkout use the specific selected Product ID. Admins should replace approximate size guides, per-size stock, and images with verified supplier data before selling real merchandise. Merchant-managed products are not automatically modified by the demo variant seeder.
+
+Other shopping UX: a bottom **Added to bag / View bag** notice after successful cart persistence, per-item quantity controls, selected addresses in checkout, COD/optional Stripe payment selection, clearer errors and account order history with purchased sizes. The storefront gets prices and stock from the Spring Boot API; changing client-side totals does not change checkout pricing.
+
+### Payments
+
+**COD** is the default demonstration checkout. **Stripe Hosted Checkout** is supported through the existing Spring Boot server endpoints, but remains disabled until you add your own `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the private `backend/.env`. A signed Stripe webhook marks a paid order; a browser redirect does not prove payment. The local smoke script checks Stripe *configuration availability*, **not** that a card payment actually settled. For end-to-end payment testing use Stripe test-mode keys and forward the CLI to `http://localhost:8000/api/stripe/webhook`. Never commit keys or use live card details in the demo.
+
+Production gaps still include official merchant/source data, accurate licensed product photos, genuine per-variant size charts and inventory, returns/refunds, shipping tracking, GST-compliant invoicing, full payment reconciliation, delivered emails/SMS, backups, abuse protections, live Aiven connection verification, and deployment security review.
+
+---
+
 ### Quick start (Mac / Linux)
 
 ```bash
