@@ -105,9 +105,35 @@ function showQuickView(id){
  const title=document.createElement('h2');title.textContent='THE DETAIL / '+(p.brand||'NOTHING SELECT');root.append(title);
  const panel=document.createElement('div');panel.className='quick-panel';
  const picture=document.createElement('div');picture.className='quick-photo';
- if(p.image&&/^https:\/\//.test(p.image)){
-  const img=document.createElement('img');img.src=p.image;img.alt='Illustrative product image: '+(p.variantGroup||p.name);
-  img.onerror=()=>{picture.textContent=chooseIcon(p)};picture.append(img);
+ // Each supplied URL is a real image reference for this listing. Do not fabricate angles from one image.
+ const gallerySources=[...(Array.isArray(p.images)?p.images:[]),p.image]
+   .filter(url=>typeof url==='string'&&/^https:\/\//.test(url));
+ const gallery=[...new Set(gallerySources)];
+ if(gallery.length){
+  const main=document.createElement('button');main.type='button';main.className='gallery-main';
+  main.setAttribute('aria-label','Zoom product image');
+  const img=document.createElement('img');img.src=gallery[0];
+  img.alt='Product photograph: '+(p.variantGroup||p.name);
+  img.onerror=()=>{img.replaceWith(document.createTextNode('Product image unavailable'))};
+  const zoomLabel=document.createElement('span');zoomLabel.className='gallery-zoom-label';zoomLabel.textContent='CLICK TO ZOOM +';
+  main.append(img,zoomLabel);
+  main.onclick=()=>{main.classList.toggle('zoomed');main.setAttribute('aria-label',main.classList.contains('zoomed')?'Exit image zoom':'Zoom product image')};
+  picture.append(main);
+  if(gallery.length>1){
+   const thumbs=document.createElement('div');thumbs.className='gallery-thumbnails';
+   gallery.forEach((url,i)=>{
+    const thumb=document.createElement('button');thumb.type='button';thumb.className='gallery-thumb'+(i===0?' active':'');
+    thumb.setAttribute('aria-label','View product image '+(i+1));thumb.setAttribute('aria-pressed',String(i===0));
+    const preview=document.createElement('img');preview.src=url;preview.alt='';preview.loading='lazy';
+    thumb.append(preview);
+    thumb.onclick=()=>{
+     img.src=url;main.classList.remove('zoomed');
+     thumbs.querySelectorAll('button').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false')});
+     thumb.classList.add('active');thumb.setAttribute('aria-pressed','true');
+    };
+    thumbs.append(thumb);
+   });picture.append(thumbs);
+  }
  }else picture.textContent=chooseIcon(p);
  const info=document.createElement('div');info.className='quick-info';
  const heading=document.createElement('h3');heading.textContent=p.variantGroup||p.name;
@@ -370,7 +396,7 @@ async function login(mode=null){
  const data=await showDialog(signup?'CREATE YOUR ACCOUNT':'WELCOME BACK',fields,signup?'SIGN UP':'SIGN IN');
  if(!data)return false;
  try{
-  if(signup)await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});
+  if(signup){await request('/api/auth/signup',{method:'POST',body:JSON.stringify(data)});notify('Account created. Email verification must be enabled server-side before accepting live customers.');return false;}
   await request('/api/auth/signin',{method:'POST',body:JSON.stringify({username:data.username,password:data.password})});
   const session=await verifySession();
   if(!session)throw new Error('Sign-in cookie was not accepted. Use http://localhost:8000 and enable site cookies.');
