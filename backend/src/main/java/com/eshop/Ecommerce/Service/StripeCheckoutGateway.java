@@ -29,6 +29,8 @@ public class StripeCheckoutGateway {
  private final OrderService orders;
  private final String key,webhookSecret,successUrl,cancelUrl;
  private final ObjectMapper json;
+ @Value("${nothing.email.verification.required:false}")
+ private boolean requireVerifiedEmail;
 
  public StripeCheckoutGateway(CartRepository carts,AddressRepository addresses,
   StripeCheckoutAttemptRepository attempts,AuthUtil auth,OrderService orders,ObjectMapper json,
@@ -64,6 +66,9 @@ public class StripeCheckoutGateway {
   if(!enabled())throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
      "Stripe is not configured. Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.");
   User buyer=auth.loggedInUser();
+  if(requireVerifiedEmail && !buyer.isEmailVerified())
+   throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+      "Verify your email before starting a Stripe payment");
   Address address=addresses.findById(addressId)
       .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Delivery address not found"));
   if(address.getUser()==null || !buyer.getUserid().equals(address.getUser().getUserid()))
