@@ -48,6 +48,9 @@ public class AuthServiceImpl implements AuthService {
     private JwtUtils jwtUtils;
 
     @Autowired
+    private com.eshop.Ecommerce.Security.Services.EmailSignupService emailSignup;
+
+    @Autowired
     UserRepository userRepository;
 
     @Autowired
@@ -91,29 +94,8 @@ public class AuthServiceImpl implements AuthService {
     //sign in
     @Override
     public ResponseEntity<MessageResponse> register(SignupRequest signUpRequest) {
-        if (userRepository.existsByUserName(signUpRequest.getUsername())) {
-            return ResponseEntity.badRequest().body(new MessageResponse("Error: Username is already taken!"));
-        }
-
-        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-            return ResponseEntity.badRequest().body(new MessageResponse("Error: Email is already in use!"));
-        }
-
-        // Create new user's account
-        User user = new User(
-                signUpRequest.getUsername(),
-                signUpRequest.getEmail(),
-                encoder.encode(signUpRequest.getPassword()));
-
-        // Public signup is always a customer. Elevated roles must be assigned by trusted admins.
-        Set<Role> roles = new HashSet<>();
-        Role userRole = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                .orElseThrow(() -> new IllegalStateException("Customer role not initialized"));
-        roles.add(userRole);
-
-        user.setRoles(roles);
-        userRepository.save(user);
-        return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+        // No username becomes a real customer until the mailbox OTP is verified.
+        return emailSignup.signup(signUpRequest);
     }
 
     @Override
