@@ -2,7 +2,7 @@ services:
   - type: web
     name: nothing-marketplace
     runtime: docker
-    dockerfilePath: ./Dockerfile.render
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /api/public/categories
     envVars:
       - key: DATABASE_URL
