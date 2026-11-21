@@ -38,6 +38,7 @@ class StripeCheckoutSecurityTest {
  @Test
  void configurationReportsStripeDisabledWithoutSecrets()throws Exception{
   mvc.perform(get("/api/checkout/stripe/config"))
-   .andExpect(status().isUnauthorized());
+   .andExpect(status().isOk())
+   .andExpect(jsonPath("$.enabled").value(false));
  }
 }
